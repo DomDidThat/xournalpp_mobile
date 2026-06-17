@@ -143,20 +143,20 @@ class _XppLayerStackState extends State<XppLayerStack> {
   Map<XppContent, Widget> renderedContent = {};
   @override
   Widget build(BuildContext context) {
-    List<Widget?> children = [];
-    widget.layer!.content!.forEach((element) {
-      if (element == null) return;
-      if (!renderedContent.keys.contains(element)) {
+    List<Widget> children = [];
+    for (final element in widget.layer!.content!) {
+      if (element == null) continue;
+      if (!renderedContent.containsKey(element)) {
         renderedContent[element] = Positioned(
           child: element.render(),
           top: element.getOffset()?.dy ?? 0,
           left: element.getOffset()?.dx ?? 0,
         );
       }
-      children.add(renderedContent[element]);
-    });
+      children.add(renderedContent[element]!);
+    }
     return Stack(
-      children: children as List<Widget>,
+      children: children,
     );
   }
 }

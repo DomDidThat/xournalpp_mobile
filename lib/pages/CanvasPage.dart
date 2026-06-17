@@ -241,101 +241,76 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
             ),
           ],
         ),
-        body: Row(
+        body: Column(
           children: [
-            NavigationRail(
-              selectedIndex: _currentToolbarIndex(),
-              onDestinationSelected: (i) => _selectToolbarIndex(i),
-              labelType: NavigationRailLabelType.all,
-              destinations: [
-                NavigationRailDestination(
-                  icon: Icon(Icons.edit),
-                  selectedIcon: Icon(Icons.edit),
-                  label: Text(S.of(context).pen),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.brush),
-                  selectedIcon: Icon(Icons.brush),
-                  label: Text(S.of(context).highlighter),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.pan_tool),
-                  selectedIcon: Icon(Icons.pan_tool),
-                  label: Text(S.of(context).move),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.backspace),
-                  selectedIcon: Icon(Icons.backspace),
-                  label: Text(S.of(context).eraser),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.tab_unselected),
-                  selectedIcon: Icon(Icons.tab_unselected),
-                  label: Text(S.of(context).selectNotImplemented),
-                ),
-              ],
-            ),
+            toolbar,
             Expanded(
-              child: Column(
+              child: Row(
                 children: [
-                  Expanded(child: _buildCanvas()),
-                  Container(
-                    height: 100,
-                    color: Theme.of(context).colorScheme.surface,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
+                  Expanded(
+                    child: Column(
                       children: [
-                        XppPagesListView(
-                            key: pageListViewKey,
-                            pages: _file!.pages,
-                            onPageChange: (newPage) {
-                              setState(() => currentPage = newPage);
-                              _pageStackKey.currentState!
-                                  .setPageData(_file!.pages![currentPage]);
-                            },
-                            onPageDelete: (deletedIndex) => setState(() {
-                                  _file!.pages!.removeAt(deletedIndex);
-                                  if (_file!.pages!.length >= currentPage)
-                                    currentPage =
-                                        _file!.pages!.length - 1;
-                                  if (_file!.pages!.isEmpty) {
-                                    _file!.pages!.add(XppPage.empty(
-                                        background:
-                                            Theme.of(context).cardColor));
-                                    currentPage = 0;
-                                    ScaffoldMessenger.of(context)
-                                        .showSnackBar(SnackBar(
-                                            content: Text(S
-                                                .of(context)
-                                                .thereWereNoMorePagesWeAddedOne)));
-                                  }
-                                }),
-                            onPageMove: (initialIndex, movedTo) =>
-                                setState(() {
-                                  final page =
-                                      _file!.pages![initialIndex];
-                                  _file!.pages!.removeAt(initialIndex);
-                                  _file!.pages!.insert(
-                                      movedTo - 1, page);
-                                }),
-                            currentPage: currentPage),
-                        FloatingActionButton(
-                          heroTag: 'AddXppPage',
-                          onPressed: () {
-                            final newPage = XppPage.empty(
-                                background:
-                                    Theme.of(context).cardColor);
-                            _undoStack.execute(AddPageCommand(
-                                file: _file!,
-                                page: newPage,
-                                index: currentPage + 1));
-                            setState(() => currentPage++);
-                            _pageStackKey.currentState!.setPageData(
-                                _file!.pages![currentPage]);
-                          },
-                          child: Icon(Icons.add),
-                          tooltip: S.of(context).addPage,
-                        )
+                        Expanded(child: _buildCanvas()),
+                        Container(
+                          height: 100,
+                          color: Theme.of(context).colorScheme.surface,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              XppPagesListView(
+                                  key: pageListViewKey,
+                                  pages: _file!.pages,
+                                  onPageChange: (newPage) {
+                                    setState(() => currentPage = newPage);
+                                    _pageStackKey.currentState!
+                                        .setPageData(_file!.pages![currentPage]);
+                                  },
+                                  onPageDelete: (deletedIndex) => setState(() {
+                                        _file!.pages!.removeAt(deletedIndex);
+                                        if (_file!.pages!.length >= currentPage)
+                                          currentPage =
+                                              _file!.pages!.length - 1;
+                                        if (_file!.pages!.isEmpty) {
+                                          _file!.pages!.add(XppPage.empty(
+                                              background:
+                                                  Theme.of(context).cardColor));
+                                          currentPage = 0;
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(SnackBar(
+                                                  content: Text(S
+                                                      .of(context)
+                                                      .thereWereNoMorePagesWeAddedOne)));
+                                        }
+                                      }),
+                                  onPageMove: (initialIndex, movedTo) =>
+                                      setState(() {
+                                        final page =
+                                            _file!.pages![initialIndex];
+                                        _file!.pages!.removeAt(initialIndex);
+                                        _file!.pages!.insert(
+                                            movedTo - 1, page);
+                                      }),
+                                  currentPage: currentPage),
+                              FloatingActionButton(
+                                heroTag: 'AddXppPage',
+                                onPressed: () {
+                                  final newPage = XppPage.empty(
+                                      background:
+                                          Theme.of(context).cardColor);
+                                  _undoStack.execute(AddPageCommand(
+                                      file: _file!,
+                                      page: newPage,
+                                      index: currentPage + 1));
+                                  setState(() => currentPage++);
+                                  _pageStackKey.currentState!.setPageData(
+                                      _file!.pages![currentPage]);
+                                },
+                                child: Icon(Icons.add),
+                                tooltip: S.of(context).addPage,
+                              )
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -526,8 +501,8 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
                     onDeviceChange: ({int? device, PointerDeviceKind? kind}) {
                       setDefaultDeviceIfNotSet(kind: kind);
                       _currentDevice = kind;
-                      _editingToolbarKey.currentState!.setState(() {
-                        _editingToolbarKey.currentState!.currentDevice = kind;
+                      _editingToolbarKey.currentState?.setState(() {
+                        _editingToolbarKey.currentState?.currentDevice = kind;
                         _setZoomableState();
                       });
                     },
@@ -701,49 +676,7 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
     );
   }
 
-  int _currentToolbarIndex() {
-    final tool = _toolData[_currentDevice];
-    switch (tool) {
-      case EditingTool.STYLUS:
-        return 0;
-      case EditingTool.HIGHLIGHT:
-        return 1;
-      case EditingTool.MOVE:
-        return 2;
-      case EditingTool.ERASER:
-        return 3;
-      case EditingTool.SELECT:
-        return 4;
-      default:
-        return 2;
-    }
-  }
 
-  void _selectToolbarIndex(int i) {
-    EditingTool tool;
-    switch (i) {
-      case 0:
-        tool = EditingTool.STYLUS;
-        break;
-      case 1:
-        tool = EditingTool.HIGHLIGHT;
-        break;
-      case 2:
-        tool = EditingTool.MOVE;
-        break;
-      case 3:
-        tool = EditingTool.ERASER;
-        break;
-      case 4:
-        tool = EditingTool.SELECT;
-        break;
-      default:
-        tool = EditingTool.MOVE;
-    }
-    setState(() => _toolData[_currentDevice] = tool);
-    _editingToolbarKey.currentState!.saveDeviceTable();
-    _setZoomableState();
-  }
 
   bool _isMacOS(BuildContext context) {
     return Theme.of(context).platform == TargetPlatform.macOS;
@@ -897,8 +830,12 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
         duration: Duration(days: 999),
       ),
     );
-    //try {
     if (_file!.title == null) await _showTitleDialog();
+    if (_file!.title == null) {
+      snackBarController.close();
+      setState(() => savingFile = false);
+      return;
+    }
     String path = _file!.title! + '.xopp';
     _file!.previewImage = kIsWeb
         ? kTransparentImage

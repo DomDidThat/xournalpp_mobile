@@ -62,7 +62,6 @@ class PointerListenerState extends State<PointerListener> {
       child: Listener(
         behavior: HitTestBehavior.translucent,
         onPointerMove: (data) {
-          if (_detectTwoFingerGesture(data)) return;
           widget.onDeviceChange!(device: data.device, kind: data.kind);
           if (!drawingEnabled) return;
 
@@ -94,11 +93,11 @@ class PointerListenerState extends State<PointerListener> {
                 radius: widget.strokeWidth);
         },
         onPointerDown: (data) {
-          if (_detectTwoFingerGesture(data, shouldPop: true)) return;
-
           setState(() {
             tool = getToolFromPointer(data);
           });
+          if (_detectTwoFingerGesture(data, shouldPop: true)) return;
+
           widget.onDeviceChange!(device: data.device, kind: data.kind);
 
           if (isSelect(data)) {
@@ -125,7 +124,7 @@ class PointerListenerState extends State<PointerListener> {
         },
         onPointerUp: (data) {
           _lastSelectPosition = null;
-          if (!poppedContentForCurrentPointer) saveStroke(tool);
+          if (points.isNotEmpty) saveStroke(tool);
           poppedContentForCurrentPointer = false;
           points.clear();
         },

@@ -306,8 +306,6 @@ class _OpenPageState extends State<OpenPage>
                   ));
         }
       }
-    } else {
-      print('Unsupported runtimeType: ${data.runtimeType.toString()}');
     }
   }
 
