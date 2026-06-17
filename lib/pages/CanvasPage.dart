@@ -163,8 +163,7 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        await _saveToNotebook();
-        if (mounted) Navigator.of(context).pop();
+        await _onBack();
       },
       child: inner,
     );
@@ -175,6 +174,13 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
       return Scaffold(
         drawer: MainDrawer(),
         appBar: AppBar(
+          leading: widget.notebookId != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Back',
+                  onPressed: _onBack,
+                )
+              : null,
           title: Tooltip(
             message: S.of(context).doubleTapToChange,
             child: GestureDetector(
@@ -365,6 +371,13 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
         _buildZoomControls(),
       ]),
       appBar: AppBar(
+        leading: widget.notebookId != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Back',
+                onPressed: _onBack,
+              )
+            : null,
         title: Tooltip(
           message: S.of(context).doubleTapToChange,
           child: GestureDetector(
@@ -838,6 +851,13 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
     await PickedFile.exportToStorage(bytes: imageBytes, fileName: fileName);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(S.of(context).successfullyShared + ' ' + fileName)));
+  }
+
+  Future<void> _onBack() async {
+    if (widget.notebookId != null) {
+      await _saveToNotebook();
+    }
+    if (mounted) Navigator.of(context).pop();
   }
 
   void saveFile({bool export = false}) async {
