@@ -174,13 +174,8 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
       return Scaffold(
         drawer: MainDrawer(),
         appBar: AppBar(
-          leading: widget.notebookId != null
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  tooltip: 'Back',
-                  onPressed: _onBack,
-                )
-              : null,
+          automaticallyImplyLeading: false,
+          leading: BackButton(onPressed: _onBack),
           title: Tooltip(
             message: S.of(context).doubleTapToChange,
             child: GestureDetector(
@@ -371,13 +366,8 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
         _buildZoomControls(),
       ]),
       appBar: AppBar(
-        leading: widget.notebookId != null
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Back',
-                onPressed: _onBack,
-              )
-            : null,
+        automaticallyImplyLeading: false,
+        leading: BackButton(onPressed: _onBack),
         title: Tooltip(
           message: S.of(context).doubleTapToChange,
           child: GestureDetector(
