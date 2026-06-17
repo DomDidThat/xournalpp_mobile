@@ -87,7 +87,7 @@ final kColorScheme = ColorScheme(
   error: Colors.deepOrange,
   onPrimary: kLightColor,
   onSecondary: kDarkColor!,
-  onSurface: kDarkColor!,
+  onSurface: kLightColor,
   onBackground: kLightColor,
   onError: kLightColor,
   brightness: Brightness.dark,
