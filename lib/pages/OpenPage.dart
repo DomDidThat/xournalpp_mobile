@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:file_picker_cross/file_picker_cross.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -191,10 +191,10 @@ class _OpenPageState extends State<OpenPage>
           ListTile(
             leading: Icon(Icons.picture_as_pdf),
             onTap: () async {
-              final _file = await XppFile.importPdf(
-                  pdf: await FilePickerCross.importFromStorage(
-                      type: FileTypeCross.custom,
-                      fileExtension: 'pdf')); // TODO `.pdf`
+              final picked = await PickedFile.importFromStorage(
+                  type: FileType.custom, allowedExtensions: ['pdf']);
+              if (picked == null) return;
+              final _file = await XppFile.importPdf(pdf: picked);
               Navigator.of(context).push(
                   MaterialPageRoute(builder: (c) => CanvasPage(file: _file)));
             },
@@ -272,7 +272,7 @@ class _OpenPageState extends State<OpenPage>
                 ],
               ));
       try {
-        XppFile file = await XppFile.fromFilePickerCross(
+        XppFile file = await XppFile.fromPickedFile(
             openFileByUri(_sharedFiles[0].path, 'xopp'),
             (percentage) => null,
             showMissingFileDialog);
@@ -350,8 +350,8 @@ class _OpenPageState extends State<OpenPage>
           ),
           onLongPress: () => showDeleteDialog(fileInfo['path']),
           onTap: () async {
-            XppFile file = await XppFile.fromFilePickerCross(
-                await FilePickerCross.fromInternalPath(path: fileInfo['path']),
+            XppFile file = await XppFile.fromPickedFile(
+                await PickedFile.fromInternalPath(path: fileInfo['path']),
                 (percent) {},
                 showMissingFileDialog);
             Navigator.of(context).push(MaterialPageRoute(
@@ -386,7 +386,7 @@ class _OpenPageState extends State<OpenPage>
                     child: Text(S.of(context).cancel)),
                 TextButton(
                     onPressed: () async {
-                      FilePickerCross.delete(path: path);
+                      PickedFile.delete(path: path);
                       setState(() {
                         recentFiles
                             .removeWhere((element) => element['path'] == path);
@@ -466,6 +466,6 @@ class _SkeletonLoaderState extends State<_SkeletonLoader>
   }
 }
 
-Future<FilePickerCross> showMissingFileDialog(String? path) {
+Future<PickedFile> showMissingFileDialog(String? path) {
   throw ('Missing file!');
 }

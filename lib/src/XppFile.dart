@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:archive/archive.dart';
-import 'package:file_picker_cross/file_picker_cross.dart';
+import 'package:xournalpp/src/PickedFile.dart';
 import 'package:flutter/material.dart';
 import 'package:transparent_image/transparent_image.dart';
 import 'package:xml/xml.dart';
@@ -31,11 +31,11 @@ class XppFile {
         title: title, pages: [XppPage.empty(background: background)]);
   }
 
-  /// creates an [XppFile] from a PDF document opened in a [FilePickerCross]
-  static Future<XppFile> importPdf({required FilePickerCross pdf}) async {
+  /// creates an [XppFile] from a PDF document opened in a [PickedFile]
+  static Future<XppFile> importPdf({required PickedFile pdf}) async {
     final pageCount = await pdfPageCount(pdf);
-    pdf.saveToPath(path: pdf.path!);
-    XppFile file = XppFile.empty(title: pdf.fileName)..pages!.clear();
+    await PickedFile.saveToPath(bytes: pdf.bytes, path: pdf.path!);
+    XppFile file = XppFile.empty(title: pdf.name)..pages!.clear();
     for (int i = 0; i < pageCount; i++) {
       final size = await pdfPageSize(pdf, i);
       file.pages!.add(XppPage.empty()
@@ -43,7 +43,7 @@ class XppFile {
         ..background = XppBackgroundPdf(
             onUnavailable: ((String p) =>
                     throw ("$p is not available even though just imported"))
-                as Future<FilePickerCross> Function(String?),
+                as Future<PickedFile> Function(String?),
             page: i,
             filename: pdf.path));
     }
@@ -85,20 +85,21 @@ class XppFile {
   /// showing a file picker, decoding and parsing to [XppFile]
   static Future<XppFile> open(Function(double) percentageCallback,
       FileNotAvailableCallback onUnavailable) async {
-    /// showing a [FilePickerCross]
-    FilePickerCross rawFile = await FilePickerCross.importFromStorage(
-        type: FileTypeCross.custom, fileExtension: 'xopp');
+    /// showing a file picker
+    PickedFile? rawFile = await PickedFile.importFromStorage(
+        type: FileType.custom, allowedExtensions: ['xopp']);
+    if (rawFile == null) throw Exception('No file selected');
 
-    /// decoding by [fromFilePickerCross]
+    /// decoding by [fromPickedFile]
     XppFile file =
-        await fromFilePickerCross(rawFile, percentageCallback, onUnavailable);
+        await fromPickedFile(rawFile, percentageCallback, onUnavailable);
 
     return file;
   }
 
-  /// decoding and parsing a [FilePickerCross] to [XppFile]
-  static Future<XppFile> fromFilePickerCross(
-      FilePickerCross rawFile,
+  /// decoding and parsing a [PickedFile] to [XppFile]
+  static Future<XppFile> fromPickedFile(
+      PickedFile rawFile,
       Function(double)? percentageCallback,
       FileNotAvailableCallback onUnavailable) async {
     /// for potential progress indicator and a better UX we provide feedback about
@@ -108,11 +109,11 @@ class XppFile {
     if (percentageCallback == null) percentageCallback = (percentage) {};
 
     /// extracting the document title
-    String title = rawFile.path!.substring(
-        rawFile.path!.lastIndexOf('/') + 1, rawFile.path!.lastIndexOf('.'));
+    String title = (rawFile.path ?? rawFile.name).substring(
+        0, (rawFile.path ?? rawFile.name).lastIndexOf('.'));
 
     /// decoding file bytes from GZip to a UTF-8 [Uint8List]
-    List<int> bytes = GZipDecoder().decodeBytes(rawFile.toUint8List().toList());
+    List<int> bytes = GZipDecoder().decodeBytes(rawFile.bytes.toList());
 
     /// decoding the [Uint8List] to a [String]
     String fileText = utf8.decode(bytes);
@@ -373,11 +374,10 @@ class XppFile {
     return GZipEncoder().encode(utf8.encode(toXmlString())) as Uint8List?;
   }
 
-  /// creating a [FilePickerCross] from the [toUint8List]
-  FilePickerCross toFilePickerCross({String? filePath}) {
+  /// creating a [PickedFile] from the [toUint8List]
+  PickedFile toPickedFile({String? filePath}) {
     Uint8List bytes = toUint8List()!;
-    return FilePickerCross(bytes,
-        type: FileTypeCross.custom, fileExtension: 'xopp', path: filePath);
+    return PickedFile(bytes: bytes, path: filePath, name: filePath ?? 'document.xopp');
   }
 }
 

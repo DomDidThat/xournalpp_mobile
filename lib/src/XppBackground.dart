@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:file_picker_cross/file_picker_cross.dart';
+import 'package:xournalpp/src/PickedFile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:xml/xml.dart';
@@ -60,7 +60,7 @@ class XppBackgroundImage extends XppBackground {
   }
 }
 
-typedef Future<FilePickerCross> FileNotAvailableCallback(String? path);
+typedef Future<PickedFile> FileNotAvailableCallback(String? path);
 
 /// page background for a [XppPage] made from a PDF document
 class XppBackgroundPdf extends XppBackground {
@@ -106,7 +106,7 @@ class _PDfBackgroundWidgetState extends State<PDfBackgroundWidget>
     super.build(context);
     return FutureBuilder(
         future:
-            FilePickerCross.fromInternalPath(path: widget.provider!.filename!)
+            PickedFile.fromInternalPath(path: widget.provider!.filename!)
                 .then((value) {
           return pdfImage(value, widget.provider!.page);
         }).catchError((e) => widget.provider!

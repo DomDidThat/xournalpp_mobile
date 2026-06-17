@@ -4,7 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui';
 
-import 'package:file_picker_cross/file_picker_cross.dart';
+import 'package:xournalpp/src/PickedFile.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -885,13 +885,9 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
   void shareScreenshot() async {
     Uint8List imageBytes =
         await pageListViewKey.currentState!.getPng(currentPage);
-    String fileName = await (FilePickerCross(imageBytes,
-            fileExtension: '.png',
-            path: '/export/' +
-                (_file?.title ?? S.of(context).newFile) +
-                ' ${currentPage + 1}' +
-                '.png')
-        .exportToStorage() as FutureOr<String>);
+    String fileName = (_file?.title ?? S.of(context).newFile) +
+        ' ${currentPage + 1}.png';
+    await PickedFile.exportToStorage(bytes: imageBytes, fileName: fileName);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(S.of(context).successfullyShared + ' ' + fileName)));
   }
@@ -913,11 +909,12 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
     _file!.previewImage = kIsWeb
         ? kTransparentImage
         : await pageListViewKey.currentState!.getPng(0);
-    FilePickerCross file = _file!.toFilePickerCross(filePath: path);
-    if (export)
-      file.exportToStorage();
-    else
-      file.saveToPath(path: path);
+    final file = _file!.toPickedFile(filePath: path);
+    if (export) {
+      await PickedFile.exportToStorage(bytes: file.bytes, fileName: file.name);
+    } else {
+      await PickedFile.saveToPath(bytes: file.bytes, path: path);
+    }
 
     /// starting async task to save recent files list
     SharedPreferences.getInstance().then((prefs) {

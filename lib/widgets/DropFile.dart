@@ -1,4 +1,4 @@
-import 'package:file_picker_cross/file_picker_cross.dart';
+import 'package:xournalpp/src/PickedFile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dropzone/flutter_dropzone.dart';
@@ -44,11 +44,11 @@ class _DropFileState extends State<DropFile> {
                           duration: Duration(days: 999),
                         ));
                         _fileDropController.getFileData(file).then((bytes) {
-                          XppFile.fromFilePickerCross(
-                                  FilePickerCross(bytes,
+                          XppFile.fromPickedFile(
+                                  PickedFile(
+                                      bytes: bytes,
                                       path: filename,
-                                      type: FileTypeCross.custom,
-                                      fileExtension: 'xopp'),
+                                      name: filename),
                                   (percentage) {},
                                   showMissingFileDialog)
                               .then((file) {

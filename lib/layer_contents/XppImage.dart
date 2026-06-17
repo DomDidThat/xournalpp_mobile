@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:file_picker_cross/file_picker_cross.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:xournalpp/src/PickedFile.dart';
 import 'package:flutter/material.dart';
 import 'package:transparent_image/transparent_image.dart';
 import 'package:xml/xml.dart';
@@ -20,11 +21,13 @@ class XppImage extends XppContent {
   XppImage({this.data, this.topLeft, this.bottomRight});
 
   static Future<XppImage> open({required Offset topLeft}) async {
-    FilePickerCross image =
-        await FilePickerCross.importFromStorage(type: FileTypeCross.image);
+    PickedFile? image =
+        await PickedFile.importFromStorage(type: FileType.image);
+
+    if (image == null) throw Exception('No image selected');
 
     /// rendering the [Uint8List] into an image to determinate the height and width
-    MemoryImage memoryImage = MemoryImage(image.toUint8List());
+    MemoryImage memoryImage = MemoryImage(image.bytes);
     Completer completer = new Completer();
     memoryImage.resolve(ImageConfiguration()).addListener(ImageStreamListener(
         (ImageInfo info, bool _) => completer.complete(info.image)));
@@ -32,7 +35,7 @@ class XppImage extends XppContent {
     Offset bottomRight = Offset(
         topLeft.dx + renderedImage.width!, topLeft.dy + renderedImage.height!);
     return XppImage(
-        data: image.toUint8List(), topLeft: topLeft, bottomRight: bottomRight);
+        data: image.bytes, topLeft: topLeft, bottomRight: bottomRight);
   }
 
   @override
