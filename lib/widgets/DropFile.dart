@@ -1,7 +1,8 @@
+import 'package:xournalpp/src/conditional/dropzone/dropzone_stub.dart'
+    if (dart.library.html) 'package:flutter_dropzone/flutter_dropzone.dart';
 import 'package:xournalpp/src/PickedFile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_dropzone/flutter_dropzone.dart';
 import 'package:xournalpp/generated/l10n.dart';
 import 'package:xournalpp/pages/CanvasPage.dart';
 import 'package:xournalpp/pages/OpenPage.dart';
@@ -30,7 +31,7 @@ class _DropFileState extends State<DropFile> {
               children: [
                 Builder(
                   builder: (context) => DropzoneView(
-                    onDrop: (file) {
+                    onDrop: (file) async {
                       setState(() {
                         _fileHover = false;
                         _loadingDropZone = true;
@@ -118,7 +119,7 @@ class _DropFileState extends State<DropFile> {
                                 actions: [
                                   TextButton(
                                     onPressed: () => Clipboard.setData(
-                                        ClipboardData(text: message)),
+                                        ClipboardData(text: message ?? '')),
                                     child: Text(S.of(context).copyErrorMessage),
                                   ),
                                   TextButton(
@@ -136,7 +137,6 @@ class _DropFileState extends State<DropFile> {
                       _fileDropController = controller;
                     },
                     operation: DragOperation.all,
-                    //mime: ['application/x-xopp'],
                   ),
                 ),
                 Center(
@@ -161,8 +161,8 @@ class _DropFileState extends State<DropFile> {
             ),
             decoration: BoxDecoration(
               color: _fileHover
-                  ? Theme.of(context).accentColor
-                  : Theme.of(context).backgroundColor,
+                  ? Theme.of(context).colorScheme.secondary
+                  : Theme.of(context).colorScheme.surface,
               border: _fileHover
                   ? Border.all(color: Theme.of(context).primaryColor, width: 2)
                   : Border.all(color: Colors.transparent, width: 2),

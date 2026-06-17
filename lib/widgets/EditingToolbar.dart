@@ -180,7 +180,7 @@ class EditingToolBarState extends State<EditingToolBar> {
                 saveDeviceTable();
               },
               child: Icon(Icons.tab_unselected),
-              tooltip: S.of(context).select,
+              tooltip: S.of(context).selectNotImplemented,
               elevation: 6,
               backgroundColor:
                   widget.deviceMap![currentDevice] == EditingTool.SELECT

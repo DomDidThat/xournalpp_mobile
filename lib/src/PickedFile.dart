@@ -22,7 +22,7 @@ class PickedFile {
     required FileType type,
     List<String>? allowedExtensions,
   }) async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: type,
       allowedExtensions: allowedExtensions,
       withData: true,
@@ -52,7 +52,7 @@ class PickedFile {
     required String fileName,
   }) async {
     if (!kIsWeb) {
-      final path = await FilePicker.platform.saveFile(
+      final path = await FilePicker.saveFile(
         fileName: fileName,
         bytes: bytes,
       );

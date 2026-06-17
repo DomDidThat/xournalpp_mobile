@@ -37,7 +37,7 @@ class _LayerSheetState extends State<LayerSheet> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Layers',
-                    style: Theme.of(context).textTheme.headline5),
+                    style: Theme.of(context).textTheme.headlineSmall),
                 IconButton(
                   icon: Icon(Icons.add),
                   tooltip: 'Add layer',

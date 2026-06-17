@@ -14,6 +14,7 @@ import 'package:xournalpp/src/XppFile.dart';
 import 'package:xournalpp/src/conditional/open_file/open_file_generic.dart'
     if (dart.library.html) 'package:xournalpp/src/conditional/open_file/open_file_web.dart'
     if (dart.library.io) 'package:xournalpp/src/conditional/open_file/open_file_io.dart';
+import 'package:xournalpp/src/PickedFile.dart';
 import 'package:xournalpp/src/globals.dart';
 import 'package:xournalpp/widgets/DropFile.dart';
 import 'package:xournalpp/widgets/MainDrawer.dart';
@@ -97,7 +98,7 @@ class _OpenPageState extends State<OpenPage>
   void _handleShareIntents() {
     try {
       // For sharing images coming from outside the app while the app is in the memory
-      ReceiveSharingIntent.getMediaStream().listen(
+      ReceiveSharingIntent.instance.getMediaStream().listen(
           (List<SharedMediaFile> value) {
         setState(() {
           _sharedFiles = value;
@@ -108,7 +109,7 @@ class _OpenPageState extends State<OpenPage>
       });
 
       // For sharing images coming from outside the app while the app is closed
-      ReceiveSharingIntent.getInitialMedia()
+      ReceiveSharingIntent.instance.getInitialMedia()
           .then((List<SharedMediaFile> value) {
         setState(() {
           _sharedFiles = value;
@@ -116,17 +117,8 @@ class _OpenPageState extends State<OpenPage>
         });
       }).catchError((e) {});
 
-      // For sharing or opening urls/text coming from outside the app while the app is in the memory
-      ReceiveSharingIntent.getTextStream().listen((String value) {
-        receivedShareNotification(value);
-      }, onError: (err) {
-        print("getLinkStream error: $err");
-      });
-
-      // For sharing or opening urls/text coming from outside the app while the app is closed
-      ReceiveSharingIntent.getInitialText().then((String? value) {
-        receivedShareNotification(value);
-      }).catchError((e) {});
+      // Text sharing intents removed from receive_sharing_intent v1.8+
+      // Re-implement if needed using a separate plugin
     } catch (e) {}
   }
 
@@ -203,7 +195,7 @@ class _OpenPageState extends State<OpenPage>
           ListTile(
             title: Text(
               S.of(context).recentFiles,
-              style: Theme.of(context).textTheme.headline3,
+              style: Theme.of(context).textTheme.displaySmall,
             ),
           )
         ]..addAll(_loadedRecent
@@ -243,8 +235,7 @@ class _OpenPageState extends State<OpenPage>
         /// TODO: don't copy files we can directly read
         print(data);
         data = [
-          SharedMediaFile(
-              data, base64Encode(kTransparentImage), null, SharedMediaType.FILE)
+          SharedMediaFile(path: data, thumbnail: base64Encode(kTransparentImage), type: SharedMediaType.file)
         ];
         _sharedFiles = data as List<SharedMediaFile>;
       }
@@ -338,8 +329,8 @@ class _OpenPageState extends State<OpenPage>
           ),
           subtitle: Text(
             fileInfo['name'],
-            style: Theme.of(context).textTheme.headline3!.copyWith(
-                color: Theme.of(context).textTheme.bodyText1!.color,
+            style: Theme.of(context).textTheme.displaySmall!.copyWith(
+                color: Theme.of(context).textTheme.bodyLarge!.color,
                 fontSize: kEmphasisFontSize * kFontSizeDivision),
           ),
           trailing: Tooltip(

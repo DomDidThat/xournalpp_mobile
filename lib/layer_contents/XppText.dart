@@ -14,7 +14,7 @@ class XppText extends XppContent {
   @required
   final String? text;
   @required
-  final Offset? offset;
+  Offset? offset;
   @required
   final String? fontFamily;
 

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:archive/archive.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:xournalpp/src/PickedFile.dart';
 import 'package:flutter/material.dart';
 import 'package:transparent_image/transparent_image.dart';

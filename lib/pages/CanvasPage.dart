@@ -14,6 +14,7 @@ import 'package:transparent_image/transparent_image.dart';
 import 'package:vector_math/vector_math_64.dart' show Vector4;
 import 'package:xournalpp/generated/l10n.dart';
 import 'package:xournalpp/src/XppFile.dart';
+import 'package:xournalpp/src/XppLayer.dart';
 import 'package:xournalpp/src/XppPage.dart';
 import 'package:xournalpp/src/globals.dart';
 import 'package:xournalpp/src/PencilSupport.dart';
@@ -93,20 +94,14 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Shortcuts(
       shortcuts: {
-        LogicalKeySet(LogicalKeyboardKey.keyS,
-            meta: _isMacOS(context), control: !_isMacOS(context)):
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyS):
             SaveIntent(),
-        LogicalKeySet(LogicalKeyboardKey.keyN,
-            meta: _isMacOS(context), control: !_isMacOS(context)):
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyN):
             NewPageIntent(),
-        LogicalKeySet(LogicalKeyboardKey.keyZ,
-            meta: _isMacOS(context), control: !_isMacOS(context)):
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyZ):
             UndoIntent(),
-        LogicalKeySet(LogicalKeyboardKey.keyZ,
-            meta: _isMacOS(context), control: !_isMacOS(context),
-            shift: true): RedoIntent(),
-        LogicalKeySet(LogicalKeyboardKey.keyY,
-            meta: _isMacOS(context), control: !_isMacOS(context)):
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.shift, LogicalKeyboardKey.keyZ): RedoIntent(),
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyY):
             RedoIntent(),
         LogicalKeySet(LogicalKeyboardKey.equal): ZoomInIntent(),
         LogicalKeySet(LogicalKeyboardKey.minus): ZoomOutIntent(),
@@ -353,7 +348,7 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
           onPressed: () {
             showModalBottomSheet(
                 elevation: 16,
-                backgroundColor: Theme.of(context).backgroundColor,
+                backgroundColor: Theme.of(context).colorScheme.surface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(16),
@@ -482,7 +477,7 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
           onPressed: () {
             showModalBottomSheet(
                 elevation: 16,
-                backgroundColor: Theme.of(context).backgroundColor,
+                backgroundColor: Theme.of(context).colorScheme.surface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(16),
@@ -502,7 +497,6 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
           tooltip: S.of(context).tools,
           child: Icon(Icons.format_paint),
         ),
-      );
     );
   }
 
@@ -564,7 +558,7 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
                       final layer =
                           _file!.pages![currentPage].layers![currentLayer];
                       _undoStack.execute(
-                          AddContentCommand(layer: layer, content: newContent));
+                          AddContentCommand(layer: layer, content: newContent!));
                       _pageStackKey.currentState!
                           .setPageData(_file!.pages![currentPage]);
                     },
@@ -799,7 +793,7 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
   void _showLayerSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Theme.of(context).backgroundColor,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
             topLeft: Radius.circular(16), topRight: Radius.circular(16)),
