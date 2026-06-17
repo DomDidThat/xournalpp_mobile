@@ -58,6 +58,12 @@ class XppImage extends XppContent {
   Offset? getOffset() => topLeft;
 
   @override
+  void moveBy(Offset delta) {
+    topLeft = topLeft! + delta;
+    bottomRight = bottomRight! + delta;
+  }
+
+  @override
   XmlElement toXmlElement() => XmlElement(XmlName('image'), [
         XmlAttribute(XmlName('left'), topLeft!.dx.toString()),
         XmlAttribute(XmlName('right'), bottomRight!.dx.toString()),
@@ -69,13 +75,21 @@ class XppImage extends XppContent {
 
   @override
   bool inRegion({Offset? topLeft, Offset? bottomRight}) {
-    // TODO: implement inRegion
-    throw UnimplementedError();
+    final tl = this.topLeft!;
+    final br = this.bottomRight!;
+    return tl.dx < bottomRight!.dx &&
+        br.dx > topLeft!.dx &&
+        tl.dy < bottomRight!.dy &&
+        br.dy > topLeft!.dy;
   }
 
   @override
   bool shouldSelectAt({Offset? coordinates, EditingTool? tool}) {
-    // TODO: implement shouldSelectAt
-    throw UnimplementedError();
+    final tl = topLeft!;
+    final br = bottomRight!;
+    return coordinates!.dx >= tl.dx &&
+        coordinates.dx <= br.dx &&
+        coordinates.dy >= tl.dy &&
+        coordinates.dy <= br.dy;
   }
 }

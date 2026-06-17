@@ -1,7 +1,4 @@
 import 'dart:convert';
-import 'dart:ui';
-
-import 'package:after_layout/after_layout.dart';
 import 'package:file_picker_cross/file_picker_cross.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -27,7 +24,7 @@ class OpenPage extends StatefulWidget {
 }
 
 class _OpenPageState extends State<OpenPage>
-    with TickerProviderStateMixin, AfterLayoutMixin {
+    with TickerProviderStateMixin {
   bool _loadedRecent = false;
   Set recentFiles = Set();
 
@@ -50,8 +47,9 @@ class _OpenPageState extends State<OpenPage>
     // trying to load fitting locale
 
     try {
-      if (['en', 'de', 'pt'].contains(window.locale.languageCode))
-        S.load(Locale(window.locale.languageCode));
+      final locale = WidgetsBinding.instance.platformDispatcher.locale;
+      if (['en', 'de', 'pt'].contains(locale.languageCode))
+        S.load(locale);
 
       /// TODO: implement custom change of language
       // checking for locale override
@@ -92,11 +90,11 @@ class _OpenPageState extends State<OpenPage>
         _loadedRecent = true;
       });
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _handleShareIntents());
     super.initState();
   }
 
-  @override
-  void afterFirstLayout(BuildContext context) {
+  void _handleShareIntents() {
     try {
       // For sharing images coming from outside the app while the app is in the memory
       ReceiveSharingIntent.getMediaStream().listen(
@@ -210,7 +208,7 @@ class _OpenPageState extends State<OpenPage>
           )
         ]..addAll(_loadedRecent
             ? generateRecentFileList(recentFiles, context)
-            : [Center(child: CircularProgressIndicator())]),
+            : [Center(child: _SkeletonLoader())]),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.of(context).push(MaterialPageRoute(
@@ -403,6 +401,68 @@ class _OpenPageState extends State<OpenPage>
                     child: Text(S.of(context).delete)),
               ],
             ));
+  }
+}
+
+class _SkeletonLoader extends StatefulWidget {
+  @override
+  _SkeletonLoaderState createState() => _SkeletonLoaderState();
+}
+
+class _SkeletonLoaderState extends State<_SkeletonLoader>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    _controller = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 1500),
+    )..repeat();
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final opacity = 0.3 + 0.3 * _controller.value;
+        return Opacity(
+          opacity: opacity,
+          child: Column(
+            children: List.generate(3, (i) => _skeletonTile()),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _skeletonTile() {
+    return ListTile(
+      leading: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          color: Theme.of(context).disabledColor.withOpacity(0.3),
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      title: Container(
+        height: 16,
+        width: 120,
+        decoration: BoxDecoration(
+          color: Theme.of(context).disabledColor.withOpacity(0.3),
+          borderRadius: BorderRadius.circular(4),
+        ),
+      ),
+    );
   }
 }
 

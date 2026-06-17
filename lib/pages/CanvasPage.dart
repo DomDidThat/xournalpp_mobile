@@ -8,6 +8,7 @@ import 'package:file_picker_cross/file_picker_cross.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:transparent_image/transparent_image.dart';
 import 'package:vector_math/vector_math_64.dart' show Vector4;
@@ -15,7 +16,10 @@ import 'package:xournalpp/generated/l10n.dart';
 import 'package:xournalpp/src/XppFile.dart';
 import 'package:xournalpp/src/XppPage.dart';
 import 'package:xournalpp/src/globals.dart';
+import 'package:xournalpp/src/PencilSupport.dart';
+import 'package:xournalpp/src/UndoStack.dart';
 import 'package:xournalpp/widgets/EditingToolbar.dart';
+import 'package:xournalpp/widgets/LayerSheet.dart';
 import 'package:xournalpp/widgets/MainDrawer.dart';
 import 'package:xournalpp/widgets/PointerListener.dart';
 import 'package:xournalpp/widgets/ToolBoxBottomSheet.dart';
@@ -23,10 +27,17 @@ import 'package:xournalpp/widgets/XppPageStack.dart';
 import 'package:xournalpp/widgets/XppPagesListView.dart';
 import 'package:xournalpp/widgets/ZoomableWidget.dart';
 
+class SaveIntent extends Intent {}
+class NewPageIntent extends Intent {}
+class UndoIntent extends Intent {}
+class RedoIntent extends Intent {}
+class ZoomInIntent extends Intent {}
+class ZoomOutIntent extends Intent {}
+class ResetZoomIntent extends Intent {}
+
 class CanvasPage extends StatefulWidget {
   CanvasPage({Key? key, this.file, this.filePath}) : super(key: key);
 
-  @required
   final XppFile? file;
   final String? filePath;
 
@@ -38,6 +49,12 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
   XppFile? _file;
 
   int currentPage = 0;
+  int currentLayer = 0;
+
+  final UndoStack _undoStack = UndoStack();
+
+  XppContent? _selectedContent;
+  Offset? _selectedContentOriginalOffset;
 
   Color toolColor = Colors.blueGrey;
   double toolWidth = 5;
@@ -65,6 +82,7 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
   void initState() {
     _setMetadata();
     super.initState();
+    PencilSupport.enablePalmRejection();
     _controllerReset = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 250),
@@ -73,145 +91,297 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      drawer: MainDrawer(),
-      body: Stack(fit: StackFit.expand, children: [
-        Hero(
-          tag: 'ZoomArea',
-          child: ZoomableWidget(
-              key: _zoomableKey,
-              controller: _zoomController,
-              onInteractionStart: _onInteractionStart,
-              onInteractionUpdate: (details) {
-                //print(details);
-                setState(() => pageScale = _zoomController.value.entry(0, 0));
+    return Shortcuts(
+      shortcuts: {
+        LogicalKeySet(LogicalKeyboardKey.keyS,
+            meta: _isMacOS(context), control: !_isMacOS(context)):
+            SaveIntent(),
+        LogicalKeySet(LogicalKeyboardKey.keyN,
+            meta: _isMacOS(context), control: !_isMacOS(context)):
+            NewPageIntent(),
+        LogicalKeySet(LogicalKeyboardKey.keyZ,
+            meta: _isMacOS(context), control: !_isMacOS(context)):
+            UndoIntent(),
+        LogicalKeySet(LogicalKeyboardKey.keyZ,
+            meta: _isMacOS(context), control: !_isMacOS(context),
+            shift: true): RedoIntent(),
+        LogicalKeySet(LogicalKeyboardKey.keyY,
+            meta: _isMacOS(context), control: !_isMacOS(context)):
+            RedoIntent(),
+        LogicalKeySet(LogicalKeyboardKey.equal): ZoomInIntent(),
+        LogicalKeySet(LogicalKeyboardKey.minus): ZoomOutIntent(),
+        LogicalKeySet(LogicalKeyboardKey.digit0): ResetZoomIntent(),
+      },
+      child: Actions(
+        actions: {
+          SaveIntent: CallbackAction<SaveIntent>(onInvoke: (_) => saveFile()),
+          UndoIntent: CallbackAction<UndoIntent>(onInvoke: (_) {
+            _undoStack.undo();
+            _pageStackKey.currentState!
+                .setPageData(_file!.pages![currentPage]);
+          }),
+          RedoIntent: CallbackAction<RedoIntent>(onInvoke: (_) {
+            _undoStack.redo();
+            _pageStackKey.currentState!
+                .setPageData(_file!.pages![currentPage]);
+          }),
+          NewPageIntent: CallbackAction<NewPageIntent>(onInvoke: (_) {
+            setState(() {
+              currentPage++;
+              _file!.pages!.insert(currentPage,
+                  XppPage.empty(background: Theme.of(context).cardColor));
+              _pageStackKey.currentState!
+                  .setPageData(_file!.pages![currentPage]);
+            });
+          }),
+          ZoomInIntent: CallbackAction<ZoomInIntent>(
+              onInvoke: (_) => _setScale(pageScale + 0.1)),
+          ZoomOutIntent: CallbackAction<ZoomOutIntent>(
+              onInvoke: (_) => _setScale(pageScale - 0.1)),
+          ResetZoomIntent: CallbackAction<ResetZoomIntent>(
+              onInvoke: (_) => _setScale(1.0)),
+        },
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 768;
+            return _buildPage(isWide);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPage(bool isWide) {
+    final toolbar = EditingToolBar(
+        key: _editingToolbarKey,
+        deviceMap: _toolData,
+        color: toolColor,
+        onWidthChange: (newWidth) {
+          setState(() {
+            toolWidth = newWidth * 2;
+          });
+        },
+        onColorChange: (newColor) {
+          setState(() {
+            toolColor = newColor;
+          });
+        },
+        onNewDeviceMap: (newDeviceMap) => setState(
+              () {
+                _toolData = newDeviceMap!;
+                _setZoomableState();
               },
-              child: Center(
-                child: Card(
-                  elevation: 12,
-                  color: Colors.white,
-                  child: AspectRatio(
-                    aspectRatio: _file!.pages![currentPage].pageSize!.ratio,
-                    child: FittedBox(
-                      child: PointerListener(
-                        key: _pointerListenerKey,
-                        translationMatrix: _zoomController.value,
-                        toolData: _toolData,
-                        strokeWidth: toolWidth,
-                        color: toolColor,
-                        onDeviceChange: (
-                            {int? device, PointerDeviceKind? kind}) {
-                          //_currentDevice = device;
-                          setDefaultDeviceIfNotSet(kind: kind);
-                          _currentDevice = kind;
-                          _editingToolbarKey.currentState!.setState(() {
-                            _editingToolbarKey.currentState!.currentDevice =
-                                kind;
-                            _setZoomableState();
-                          });
-                        },
-                        removeLastContent: () {
-                          _file!.pages![currentPage].layers![0].content!
-                              .removeLast();
-                        },
-                        filterEraser: ({Offset? coordinates, double? radius}) {
-                          // if we would execute the removal instantly, we would destroy the order of the strokes
-                          List<Function> removalFunctions = [];
-                          _file!.pages![currentPage].layers![0].content!
-                              .forEach((stroke) {
-                            final delta = stroke!.eraseWhere(
-                                coordinates: coordinates, radius: radius);
-                            if (!delta.affected) return;
+            ));
 
-                            removalFunctions.add(() {
-                              final int index = _file!
-                                  .pages![currentPage].layers![0].content!
-                                  .indexOf(stroke);
-                              _file!.pages![currentPage].layers![0].content!
-                                  .removeAt(index);
-                              _file!.pages![currentPage].layers![0].content!
-                                  .insertAll(index, delta.newContent);
-                            });
-                          });
-                          if (removalFunctions.isNotEmpty) {
-                            removalFunctions.forEach((element) {
-                              element();
-                            });
-                            setState(() {});
-                          }
-                        },
-                        onNewContent: (newContent) {
-                          /// TODO: manage layers
-                          _file!.pages![currentPage].layers![0].content =
-                              new List.from(_file!
-                                  .pages![currentPage].layers![0].content!)
-                                ..add(newContent);
-
-                          _pageStackKey.currentState!
-                              .setPageData(_file!.pages![currentPage]);
-                        },
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: XppPageStack(
-                            /// to communicate from [PointerListener] to [XppPageStack]
-                            key: _pageStackKey,
-                            page: _file!.pages![currentPage],
-                          ),
-                        ),
+    if (isWide) {
+      return Scaffold(
+        drawer: MainDrawer(),
+        appBar: AppBar(
+          title: Tooltip(
+            message: S.of(context).doubleTapToChange,
+            child: GestureDetector(
+                onDoubleTap: _showTitleDialog,
+                child:
+                    Text(widget.file?.title ?? S.of(context).newDocument)),
+          ),
+          actions: [
+            IconButton(
+              icon: Icon(Icons.undo),
+              onPressed: _undoStack.canUndo
+                  ? () {
+                      setState(() => _undoStack.undo());
+                      _pageStackKey.currentState!
+                          .setPageData(_file!.pages![currentPage]);
+                    }
+                  : null,
+              tooltip: 'Undo',
+            ),
+            IconButton(
+              icon: Icon(Icons.redo),
+              onPressed: _undoStack.canRedo
+                  ? () {
+                      setState(() => _undoStack.redo());
+                      _pageStackKey.currentState!
+                          .setPageData(_file!.pages![currentPage]);
+                    }
+                  : null,
+              tooltip: 'Redo',
+            ),
+            IconButton(
+              icon: Icon(Icons.layers),
+              onPressed: () => _showLayerSheet(),
+              tooltip: 'Layer ${currentLayer + 1}',
+            ),
+            savingFile
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation(
+                            Theme.of(context).colorScheme.onPrimary),
                       ),
                     ),
+                  )
+                : IconButton(
+                    icon: Icon(Icons.save),
+                    onPressed: saveFile,
+                    tooltip: S.of(context).save,
                   ),
-                ),
-              ))
-          /*ColorFiltered(
-                  colorFilter: ColorFilter.mode(
-                      Theme.of(context).colorScheme.surface.withOpacity(.5),
-                      BlendMode.darken),
-                  child: child,
-                )*/
-          ,
+            PopupMenuButton<String>(
+              onSelected: (item) async {
+                if (item == S.of(context).saveAs) saveFile(export: true);
+                if (item == S.of(context).sharePage) shareScreenshot();
+              },
+              itemBuilder: (BuildContext context) {
+                return {
+                  S.of(context).saveAs,
+                  if (!kIsWeb) S.of(context).sharePage
+                }.map((String choice) {
+                  return PopupMenuItem<String>(
+                    value: choice,
+                    child: Text(choice),
+                  );
+                }).toList();
+              },
+            ),
+          ],
         ),
-        Positioned(
-          bottom: 16,
-          right: 16,
-          child: Tooltip(
-            message: '${(pageScale * 100).round()} %',
-            child: SizedBox(
-              width: 64,
+        body: Row(
+          children: [
+            NavigationRail(
+              selectedIndex: _currentToolbarIndex(),
+              onDestinationSelected: (i) => _selectToolbarIndex(i),
+              labelType: NavigationRailLabelType.all,
+              destinations: [
+                NavigationRailDestination(
+                  icon: Icon(Icons.edit),
+                  selectedIcon: Icon(Icons.edit),
+                  label: Text(S.of(context).pen),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.brush),
+                  selectedIcon: Icon(Icons.brush),
+                  label: Text(S.of(context).highlighter),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.pan_tool),
+                  selectedIcon: Icon(Icons.pan_tool),
+                  label: Text(S.of(context).move),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.backspace),
+                  selectedIcon: Icon(Icons.backspace),
+                  label: Text(S.of(context).eraser),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.tab_unselected),
+                  selectedIcon: Icon(Icons.tab_unselected),
+                  label: Text(S.of(context).selectNotImplemented),
+                ),
+              ],
+            ),
+            Expanded(
               child: Column(
                 children: [
-                  IconButton(
-                      icon: Icon(Icons.add),
-                      color: Theme.of(context).primaryColor,
-                      onPressed: () {
-                        this._setScale(pageScale + 0.1);
-                      }),
-                  SizedBox(
-                    height: 128,
-                    child: RotatedBox(
-                      quarterTurns: 3,
-                      child: Slider(
-                        min: 0.1,
-                        max: 5,
-                        label: '${(pageScale * 100).round()} %',
-                        value: pageScale,
-                        onChanged: (newZoom) {
-                          _setScale(newZoom, animate: false);
-                        },
-                      ),
+                  Expanded(child: _buildCanvas()),
+                  Container(
+                    height: 100,
+                    color: Theme.of(context).colorScheme.surface,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        XppPagesListView(
+                            key: pageListViewKey,
+                            pages: _file!.pages,
+                            onPageChange: (newPage) {
+                              setState(() => currentPage = newPage);
+                              _pageStackKey.currentState!
+                                  .setPageData(_file!.pages![currentPage]);
+                            },
+                            onPageDelete: (deletedIndex) => setState(() {
+                                  _file!.pages!.removeAt(deletedIndex);
+                                  if (_file!.pages!.length >= currentPage)
+                                    currentPage =
+                                        _file!.pages!.length - 1;
+                                  if (_file!.pages!.isEmpty) {
+                                    _file!.pages!.add(XppPage.empty(
+                                        background:
+                                            Theme.of(context).cardColor));
+                                    currentPage = 0;
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(SnackBar(
+                                            content: Text(S
+                                                .of(context)
+                                                .thereWereNoMorePagesWeAddedOne)));
+                                  }
+                                }),
+                            onPageMove: (initialIndex, movedTo) =>
+                                setState(() {
+                                  final page =
+                                      _file!.pages![initialIndex];
+                                  _file!.pages!.removeAt(initialIndex);
+                                  _file!.pages!.insert(
+                                      movedTo - 1, page);
+                                }),
+                            currentPage: currentPage),
+                        FloatingActionButton(
+                          heroTag: 'AddXppPage',
+                          onPressed: () {
+                            final newPage = XppPage.empty(
+                                background:
+                                    Theme.of(context).cardColor);
+                            _undoStack.execute(AddPageCommand(
+                                file: _file!,
+                                page: newPage,
+                                index: currentPage + 1));
+                            setState(() => currentPage++);
+                            _pageStackKey.currentState!.setPageData(
+                                _file!.pages![currentPage]);
+                          },
+                          child: Icon(Icons.add),
+                          tooltip: S.of(context).addPage,
+                        )
+                      ],
                     ),
                   ),
-                  IconButton(
-                      icon: Icon(Icons.remove),
-                      color: Theme.of(context).primaryColor,
-                      onPressed: () {
-                        this._setScale(pageScale - 0.1);
-                      }),
                 ],
               ),
             ),
-          ),
-        )
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            showModalBottomSheet(
+                elevation: 16,
+                backgroundColor: Theme.of(context).backgroundColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16)),
+                ),
+                context: context,
+                builder: (context) => ToolBoxBottomSheet(
+                      onBackgroundChange: (newBackground) {
+                        newBackground.size =
+                            _file!.pages![currentPage].pageSize;
+                        setState(() =>
+                            _file!.pages![currentPage].background =
+                                newBackground);
+                      },
+                    ));
+          },
+          tooltip: S.of(context).tools,
+          child: Icon(Icons.format_paint),
+        ),
+      );
+    }
+
+    // Compact layout (phone / iPad portrait)
+    return Scaffold(
+      drawer: MainDrawer(),
+      body: Stack(fit: StackFit.expand, children: [
+        _buildCanvas(),
+        _buildZoomControls(),
       ]),
       appBar: AppBar(
         title: Tooltip(
@@ -236,6 +406,33 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
                   onPressed: saveFile,
                   tooltip: S.of(context).save,
                 ),
+          IconButton(
+            icon: Icon(Icons.undo),
+            onPressed: _undoStack.canUndo
+                ? () {
+                    setState(() => _undoStack.undo());
+                    _pageStackKey.currentState!
+                        .setPageData(_file!.pages![currentPage]);
+                  }
+                : null,
+            tooltip: 'Undo',
+          ),
+          IconButton(
+            icon: Icon(Icons.redo),
+            onPressed: _undoStack.canRedo
+                ? () {
+                    setState(() => _undoStack.redo());
+                    _pageStackKey.currentState!
+                        .setPageData(_file!.pages![currentPage]);
+                  }
+                : null,
+            tooltip: 'Redo',
+          ),
+          IconButton(
+            icon: Icon(Icons.layers),
+            onPressed: () => _showLayerSheet(),
+            tooltip: 'Layer ${currentLayer + 1}',
+          ),
           PopupMenuButton<String>(
             onSelected: (item) async {
               if (item == S.of(context).saveAs) saveFile(export: true);
@@ -262,8 +459,7 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
                 color: toolColor,
                 onWidthChange: (newWidth) {
                   setState(() {
-                    toolWidth = newWidth *
-                        2; // average pressure is 0.5, so multiplying by 2
+                    toolWidth = newWidth * 2;
                   });
                 },
                 onColorChange: (newColor) {
@@ -277,86 +473,286 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
                         _setZoomableState();
                       },
                     ))),
-      ),
-      bottomNavigationBar: BottomAppBar(
-        shape: kIsWeb ? null : CircularNotchedRectangle(),
-        child: Container(
-            color: Theme.of(context).colorScheme.surface,
-            constraints: BoxConstraints(maxHeight: 100),
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                XppPagesListView(
-                    key: pageListViewKey,
-                    pages: _file!.pages,
-                    onPageChange: (newPage) {
-                      setState(() => currentPage = newPage);
+        ),
+        bottomNavigationBar: _buildPageStrip(),
+        floatingActionButtonLocation: kIsWeb
+            ? FloatingActionButtonLocation.centerFloat
+            : FloatingActionButtonLocation.centerDocked,
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            showModalBottomSheet(
+                elevation: 16,
+                backgroundColor: Theme.of(context).backgroundColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16)),
+                ),
+                context: context,
+                builder: (context) => ToolBoxBottomSheet(
+                      onBackgroundChange: (newBackground) {
+                        newBackground.size =
+                            _file!.pages![currentPage].pageSize;
+                        setState(() =>
+                            _file!.pages![currentPage].background =
+                                newBackground);
+                      },
+                    ));
+          },
+          tooltip: S.of(context).tools,
+          child: Icon(Icons.format_paint),
+        ),
+      );
+    );
+  }
+
+  Widget _buildCanvas() {
+    return Hero(
+      tag: 'ZoomArea',
+      child: ZoomableWidget(
+          key: _zoomableKey,
+          controller: _zoomController,
+          onInteractionStart: _onInteractionStart,
+          onInteractionUpdate: (details) {
+            setState(() => pageScale = _zoomController.value.entry(0, 0));
+          },
+          child: Center(
+            child: Card(
+              elevation: 12,
+              color: Colors.white,
+              child: AspectRatio(
+                aspectRatio: _file!.pages![currentPage].pageSize!.ratio,
+                child: FittedBox(
+                  child: PointerListener(
+                    key: _pointerListenerKey,
+                    translationMatrix: _zoomController.value,
+                    toolData: _toolData,
+                    strokeWidth: toolWidth,
+                    color: toolColor,
+                    onDeviceChange: ({int? device, PointerDeviceKind? kind}) {
+                      setDefaultDeviceIfNotSet(kind: kind);
+                      _currentDevice = kind;
+                      _editingToolbarKey.currentState!.setState(() {
+                        _editingToolbarKey.currentState!.currentDevice = kind;
+                        _setZoomableState();
+                      });
+                    },
+                    removeLastContent: () {
+                      _file!.pages![currentPage].layers![currentLayer].content!
+                          .removeLast();
+                    },
+                    filterEraser: ({Offset? coordinates, double? radius}) {
+                      List<Function> removalFunctions = [];
+                      final layer =
+                          _file!.pages![currentPage].layers![currentLayer];
+                      layer.content!.forEach((stroke) {
+                        final delta = stroke!.eraseWhere(
+                            coordinates: coordinates, radius: radius);
+                        if (!delta.affected) return;
+                        removalFunctions.add(() {
+                          final int index = layer.content!.indexOf(stroke);
+                          layer.content!.removeAt(index);
+                          layer.content!.insertAll(index, delta.newContent);
+                        });
+                      });
+                      if (removalFunctions.isNotEmpty) {
+                        removalFunctions.forEach((element) => element());
+                        setState(() {});
+                      }
+                    },
+                    onNewContent: (newContent) {
+                      final layer =
+                          _file!.pages![currentPage].layers![currentLayer];
+                      _undoStack.execute(
+                          AddContentCommand(layer: layer, content: newContent));
                       _pageStackKey.currentState!
                           .setPageData(_file!.pages![currentPage]);
                     },
-                    onPageDelete: (deletedIndex) => setState(() {
-                          _file!.pages!.removeAt(deletedIndex);
-                          if (_file!.pages!.length >= currentPage)
-                            currentPage = _file!.pages!.length - 1;
-                          if (_file!.pages!.isEmpty) {
-                            _file!.pages!.add(XppPage.empty(
-                                background: Theme.of(context).cardColor));
-                            currentPage = 0;
-
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                content: Text(S
-                                    .of(context)
-                                    .thereWereNoMorePagesWeAddedOne)));
-                          }
-                        }),
-                    onPageMove: (initialIndex, movedTo) => setState(() {
-                          final page = _file!.pages![initialIndex];
-                          _file!.pages!.removeAt(initialIndex);
-                          _file!.pages!.insert(movedTo - 1, page);
-                        }),
-                    currentPage: currentPage),
-                FloatingActionButton(
-                  heroTag: 'AddXppPage',
-                  onPressed: () => setState(() {
-                    currentPage++;
-                    _file!.pages!.insert(currentPage,
-                        XppPage.empty(background: Theme.of(context).cardColor));
-
-                    _pageStackKey.currentState!
-                        .setPageData(_file!.pages![currentPage]);
-                  }),
-                  child: Icon(Icons.add),
-                  tooltip: S.of(context).addPage,
-                )
-              ],
-            )),
-      ),
-      floatingActionButtonLocation: kIsWeb
-          ? FloatingActionButtonLocation.centerFloat
-          : FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          showModalBottomSheet(
-              elevation: 16,
-              backgroundColor: Theme.of(context).backgroundColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16)),
-              ),
-              context: context,
-              builder: (context) => ToolBoxBottomSheet(
-                    onBackgroundChange: (newBackground) {
-                      newBackground.size = _file!.pages![currentPage].pageSize;
-                      setState(() => _file!.pages![currentPage].background =
-                          newBackground);
+                    onSelectionTap: (position) {
+                      final layer =
+                          _file!.pages![currentPage].layers![currentLayer];
+                      XppContent? hit;
+                      for (final content in layer.content!.reversed) {
+                        if (content!.shouldSelectAt(
+                            coordinates: position,
+                            tool: EditingTool.SELECT)) {
+                          hit = content;
+                          break;
+                        }
+                      }
+                      if (hit == _selectedContent) {
+                        setState(() => _selectedContent = null);
+                        return;
+                      }
+                      setState(() {
+                        _selectedContent = hit;
+                        _selectedContentOriginalOffset = hit?.getOffset();
+                      });
                     },
-                  ));
-        },
-        tooltip: S.of(context).tools,
-        child: Icon(Icons.format_paint),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+                    onSelectionMove: (delta) {
+                      if (_selectedContent == null) return;
+                      setState(() {
+                        _selectedContent!.moveBy(delta);
+                        _selectedContentOriginalOffset =
+                            _selectedContent!.getOffset();
+                      });
+                    },
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: XppPageStack(
+                        key: _pageStackKey,
+                        page: _file!.pages![currentPage],
+                        selectedContent: _selectedContent,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )),
     );
+  }
+
+  Widget _buildZoomControls() {
+    return Positioned(
+      bottom: 16,
+      right: 16,
+      child: Tooltip(
+        message: '${(pageScale * 100).round()} %',
+        child: SizedBox(
+          width: 64,
+          child: Column(
+            children: [
+              IconButton(
+                  icon: Icon(Icons.add),
+                  color: Theme.of(context).primaryColor,
+                  onPressed: () => _setScale(pageScale + 0.1)),
+              SizedBox(
+                height: 128,
+                child: RotatedBox(
+                  quarterTurns: 3,
+                  child: Slider(
+                    min: 0.1,
+                    max: 5,
+                    label: '${(pageScale * 100).round()} %',
+                    value: pageScale,
+                    onChanged: (newZoom) => _setScale(newZoom, animate: false),
+                  ),
+                ),
+              ),
+              IconButton(
+                  icon: Icon(Icons.remove),
+                  color: Theme.of(context).primaryColor,
+                  onPressed: () => _setScale(pageScale - 0.1)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPageStrip() {
+    return BottomAppBar(
+      shape: kIsWeb ? null : CircularNotchedRectangle(),
+      child: Container(
+        color: Theme.of(context).colorScheme.surface,
+        constraints: BoxConstraints(maxHeight: 100),
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          children: [
+            XppPagesListView(
+                key: pageListViewKey,
+                pages: _file!.pages,
+                onPageChange: (newPage) {
+                  setState(() => currentPage = newPage);
+                  _pageStackKey.currentState!
+                      .setPageData(_file!.pages![currentPage]);
+                },
+                onPageDelete: (deletedIndex) => setState(() {
+                      _file!.pages!.removeAt(deletedIndex);
+                      if (_file!.pages!.length >= currentPage)
+                        currentPage = _file!.pages!.length - 1;
+                      if (_file!.pages!.isEmpty) {
+                        _file!.pages!.add(
+                            XppPage.empty(background: Theme.of(context).cardColor));
+                        currentPage = 0;
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(
+                                S.of(context).thereWereNoMorePagesWeAddedOne)));
+                      }
+                    }),
+                onPageMove: (initialIndex, movedTo) => setState(() {
+                      final page = _file!.pages![initialIndex];
+                      _file!.pages!.removeAt(initialIndex);
+                      _file!.pages!.insert(movedTo - 1, page);
+                    }),
+                currentPage: currentPage),
+            FloatingActionButton(
+              heroTag: 'AddXppPage',
+              onPressed: () {
+                final newPage =
+                    XppPage.empty(background: Theme.of(context).cardColor);
+                _undoStack.execute(
+                    AddPageCommand(file: _file!, page: newPage, index: currentPage + 1));
+                setState(() => currentPage++);
+                _pageStackKey.currentState!
+                    .setPageData(_file!.pages![currentPage]);
+              },
+              child: Icon(Icons.add),
+              tooltip: S.of(context).addPage,
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  int _currentToolbarIndex() {
+    final tool = _toolData[_currentDevice];
+    switch (tool) {
+      case EditingTool.STYLUS:
+        return 0;
+      case EditingTool.HIGHLIGHT:
+        return 1;
+      case EditingTool.MOVE:
+        return 2;
+      case EditingTool.ERASER:
+        return 3;
+      case EditingTool.SELECT:
+        return 4;
+      default:
+        return 2;
+    }
+  }
+
+  void _selectToolbarIndex(int i) {
+    EditingTool tool;
+    switch (i) {
+      case 0:
+        tool = EditingTool.STYLUS;
+        break;
+      case 1:
+        tool = EditingTool.HIGHLIGHT;
+        break;
+      case 2:
+        tool = EditingTool.MOVE;
+        break;
+      case 3:
+        tool = EditingTool.ERASER;
+        break;
+      case 4:
+        tool = EditingTool.SELECT;
+        break;
+      default:
+        tool = EditingTool.MOVE;
+    }
+    setState(() => _toolData[_currentDevice] = tool);
+    _editingToolbarKey.currentState!.saveDeviceTable();
+    _setZoomableState();
+  }
+
+  bool _isMacOS(BuildContext context) {
+    return Theme.of(context).platform == TargetPlatform.macOS;
   }
 
   void _setMetadata() {
@@ -398,6 +794,40 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
             ],
           );
         });
+  }
+
+  void _showLayerSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).backgroundColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(16), topRight: Radius.circular(16)),
+      ),
+      builder: (context) => LayerSheet(
+        page: _file!.pages![currentPage],
+        currentLayer: currentLayer,
+        onLayerChanged: (newLayer) {
+          setState(() => currentLayer = newLayer);
+        },
+        onLayerAdded: () {
+          setState(() {
+            _file!.pages![currentPage].layers!.add(XppLayer.empty());
+            currentLayer = _file!.pages![currentPage].layers!.length - 1;
+          });
+          Navigator.of(context).pop();
+        },
+        onLayerDeleted: (i) {
+          setState(() {
+            _file!.pages![currentPage].layers!.removeAt(i);
+            if (currentLayer >= _file!.pages![currentPage].layers!.length) {
+              currentLayer = _file!.pages![currentPage].layers!.length - 1;
+            }
+          });
+          Navigator.of(context).pop();
+        },
+      ),
+    );
   }
 
   void setDefaultDeviceIfNotSet({PointerDeviceKind? kind}) {

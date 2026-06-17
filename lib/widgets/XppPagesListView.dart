@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:xournalpp/generated/l10n.dart';
 import 'package:xournalpp/src/XppPage.dart';
 import 'package:xournalpp/widgets/ContextualBottomSheet.dart';
@@ -87,57 +90,123 @@ class XppPagesListViewState extends State<XppPagesListView> {
     return pageKeys[i]!.currentState!.toPng();
   }
 
-  showContext(int i) => showModalBottomSheet(
-      backgroundColor: Colors.transparent,
-      context: context,
-      builder: (context) => ContextualBottomSheet(
-            children: [
-              ListTile(
-                title: Text(S.of(context).deletePage),
-                leading: Icon(Icons.delete_forever),
-                onTap: () {
-                  widget.onPageDelete!(i);
-                  Navigator.of(context).pop();
-                },
-              ),
-              ListTile(
-                title: Text(S.of(context).movePage + '...'),
-                leading: Icon(Icons.open_with),
-                onTap: () async {
-                  int newIndex = i;
-                  if (await (showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                            title: Text(S.of(context).movePage + ' $i'),
-                            content: TextField(
-                              onChanged: (string) =>
-                                  newIndex = int.parse(string),
-                              keyboardType: TextInputType.number,
-                              decoration: InputDecoration(
-                                  labelText: S.of(context).newPageIndex,
-                                  helperText: S.of(context).between1And +
-                                      ' ${widget.pages!.length}.'),
+  void showContext(int i) {
+    if (Platform.isIOS) {
+      HapticFeedback.mediumImpact();
+      showCupertinoModalPopup(
+        context: context,
+        builder: (context) => CupertinoActionSheet(
+          title: Text('Page ${i + 1}'),
+          actions: [
+            CupertinoActionSheetAction(
+              onPressed: () {
+                widget.onPageDelete!(i);
+                Navigator.of(context).pop();
+              },
+              isDestructiveAction: true,
+              child: Text(S.of(context).deletePage),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                int newIndex = i;
+                if (await (showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                          title: Text(S.of(context).movePage + ' $i'),
+                          content: TextField(
+                            onChanged: (string) =>
+                                newIndex = int.parse(string),
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                                labelText: S.of(context).newPageIndex,
+                                helperText: S.of(context).between1And +
+                                    ' ${widget.pages!.length}.'),
+                          ),
+                          actions: [
+                            TextButton(
+                              child: Text(S.of(context).cancel),
+                              onPressed: () =>
+                                  Navigator.of(context).pop(false),
                             ),
-                            actions: [
-                              TextButton(
-                                child: Text(S.of(context).cancel),
-                                onPressed: () =>
-                                    Navigator.of(context).pop(false),
-                              ),
-                              TextButton(
-                                child: Text(S.of(context).okay),
-                                onPressed: () {
-                                  if (newIndex <= widget.pages!.length)
-                                    Navigator.of(context).pop(true);
-                                },
-                              ),
-                            ],
-                          )) as FutureOr<bool>)) {
-                    widget.onPageMove!(i, newIndex);
-                  }
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
-          ));
+                            TextButton(
+                              child: Text(S.of(context).okay),
+                              onPressed: () {
+                                if (newIndex <= widget.pages!.length)
+                                  Navigator.of(context).pop(true);
+                              },
+                            ),
+                          ],
+                        )) as FutureOr<bool>)) {
+                  widget.onPageMove!(i, newIndex);
+                }
+              },
+              child: Text(S.of(context).movePage + '...'),
+            ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(S.of(context).cancel),
+          ),
+        ),
+      );
+    } else {
+      showModalBottomSheet(
+          backgroundColor: Colors.transparent,
+          context: context,
+          builder: (context) => ContextualBottomSheet(
+                children: [
+                  ListTile(
+                    title: Text(S.of(context).deletePage),
+                    leading: Icon(Icons.delete_forever),
+                    onTap: () {
+                      widget.onPageDelete!(i);
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                  ListTile(
+                    title: Text(S.of(context).movePage + '...'),
+                    leading: Icon(Icons.open_with),
+                    onTap: () async {
+                      int newIndex = i;
+                      if (await (showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                                title:
+                                    Text(S.of(context).movePage + ' $i'),
+                                content: TextField(
+                                  onChanged: (string) =>
+                                      newIndex = int.parse(string),
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                      labelText:
+                                          S.of(context).newPageIndex,
+                                      helperText:
+                                          S.of(context).between1And +
+                                              ' ${widget.pages!.length}.'),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    child: Text(S.of(context).cancel),
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                  ),
+                                  TextButton(
+                                    child: Text(S.of(context).okay),
+                                    onPressed: () {
+                                      if (newIndex <= widget.pages!.length)
+                                        Navigator.of(context).pop(true);
+                                    },
+                                  ),
+                                ],
+                              )) as FutureOr<bool>)) {
+                        widget.onPageMove!(i, newIndex);
+                      }
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ],
+              ));
+    }
+  }
 }

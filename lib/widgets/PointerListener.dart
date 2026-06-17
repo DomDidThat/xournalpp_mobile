@@ -9,24 +9,17 @@ import 'package:xournalpp/src/XppLayer.dart';
 import 'package:xournalpp/widgets/ToolBoxBottomSheet.dart';
 
 class PointerListener extends StatefulWidget {
-  @required
   final Function(XppContent?)? onNewContent;
-  @required
   final Function({int? device, PointerDeviceKind? kind})? onDeviceChange;
-  @required
   final Widget? child;
-  @required
   final Map<PointerDeviceKind?, EditingTool> toolData;
-  @required
   final Matrix4? translationMatrix;
-  @required
   final double? strokeWidth;
-  @required
   final Color? color;
-  @required
   final Function({Offset? coordinates, double? radius})? filterEraser;
-  @required
   final Function()? removeLastContent;
+  final Function(Offset position)? onSelectionTap;
+  final Function(Offset delta)? onSelectionMove;
 
   const PointerListener(
       {Key? key,
@@ -38,7 +31,9 @@ class PointerListener extends StatefulWidget {
       this.strokeWidth,
       this.color,
       this.filterEraser,
-      this.removeLastContent})
+      this.removeLastContent,
+      this.onSelectionTap,
+      this.onSelectionMove})
       : super(key: key);
 
   @override
@@ -47,6 +42,7 @@ class PointerListener extends StatefulWidget {
 
 class PointerListenerState extends State<PointerListener> {
   late bool drawingEnabled;
+  Offset? _lastSelectPosition;
 
   List<XppStrokePoint> points = [];
 
@@ -69,6 +65,16 @@ class PointerListenerState extends State<PointerListener> {
           if (_detectTwoFingerGesture(data)) return;
           widget.onDeviceChange!(device: data.device, kind: data.kind);
           if (!drawingEnabled) return;
+
+          if (isSelect(data)) {
+            final delta = _lastSelectPosition != null
+                ? data.localPosition - _lastSelectPosition!
+                : Offset.zero;
+            _lastSelectPosition = data.localPosition;
+            widget.onSelectionMove?.call(delta);
+            return;
+          }
+
           if (isPen(data) || isHighlighter(data)) {
             double? width = (data.pressure == 0
                 ? widget.strokeWidth
@@ -94,6 +100,13 @@ class PointerListenerState extends State<PointerListener> {
             tool = getToolFromPointer(data);
           });
           widget.onDeviceChange!(device: data.device, kind: data.kind);
+
+          if (isSelect(data)) {
+            _lastSelectPosition = data.localPosition;
+            widget.onSelectionTap?.call(data.localPosition);
+            return;
+          }
+
           if (isLaTeX(data)) {
             XppTexImage.edit(
                     context: context,
@@ -111,11 +124,13 @@ class PointerListenerState extends State<PointerListener> {
           }
         },
         onPointerUp: (data) {
+          _lastSelectPosition = null;
           if (!poppedContentForCurrentPointer) saveStroke(tool);
           poppedContentForCurrentPointer = false;
           points.clear();
         },
         onPointerCancel: (data) {
+          _lastSelectPosition = null;
           points.clear();
           poppedContentForCurrentPointer = false;
         },
@@ -160,6 +175,11 @@ class PointerListenerState extends State<PointerListener> {
           tool: tool, points: List.from(points), color: widget.color);
       widget.onNewContent!(stroke);
     }
+  }
+
+  bool isSelect(PointerEvent data) {
+    return (widget.toolData.keys.contains(data.kind) &&
+        widget.toolData[data.kind] == EditingTool.SELECT);
   }
 
   bool isPen(PointerEvent data) {

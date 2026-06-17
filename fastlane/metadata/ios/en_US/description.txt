@@ -1,0 +1,17 @@
+Xournal++ Mobile brings the power of Xournal++ note-taking to your iPad and iPhone.
+
+Create, edit, and view .xopp files on the go. Import PDFs and annotate them with your Apple Pencil or finger. Full support for strokes, highlights, text, images, and LaTeX equations.
+
+Features:
+- Native .xopp file format support
+- Apple Pencil support with palm rejection
+- PDF import and annotation
+- Pressure-sensitive pen, highlighter, and eraser tools
+- Layer management
+- Full undo/redo support
+- iPad multi-tasking with Split View and Slide Over
+- Keyboard shortcuts for power users
+- Dark mode support
+- Export and share pages as PNG
+
+Xournal++ Mobile is an unofficial mobile port of the desktop Xournal++ application.

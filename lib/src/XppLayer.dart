@@ -18,6 +18,8 @@ class XppLayer {
 abstract class XppContent {
   Offset? getOffset();
 
+  void moveBy(Offset delta);
+
   XppPageContentWidget render();
 
   XmlElement toXmlElement();

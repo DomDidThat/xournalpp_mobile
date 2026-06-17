@@ -24,6 +24,11 @@ class XppText extends XppContent {
   Offset? getOffset() => offset;
 
   @override
+  void moveBy(Offset delta) {
+    offset = offset! + delta;
+  }
+
+  @override
   XppPageContentWidget render() {
     return XppPageContentWidget(
       child: RichTextField(),
@@ -51,14 +56,22 @@ class XppText extends XppContent {
 
   @override
   bool inRegion({Offset? topLeft, Offset? bottomRight}) {
-    // TODO: implement inRegion
-    throw UnimplementedError();
+    final tl = offset!;
+    final br = Offset(offset!.dx + size! * 10, offset!.dy + size! * 2);
+    return tl.dx < bottomRight!.dx &&
+        br.dx > topLeft!.dx &&
+        tl.dy < bottomRight!.dy &&
+        br.dy > topLeft!.dy;
   }
 
   @override
   bool shouldSelectAt({Offset? coordinates, EditingTool? tool}) {
-    // TODO: implement shouldSelectAt
-    throw UnimplementedError();
+    final tl = offset!;
+    final br = Offset(offset!.dx + size! * 10, offset!.dy + size! * 2);
+    return coordinates!.dx >= tl.dx &&
+        coordinates.dx <= br.dx &&
+        coordinates.dy >= tl.dy &&
+        coordinates.dy <= br.dy;
   }
 }
 

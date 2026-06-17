@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:xournalpp/generated/l10n.dart';
 import 'package:xournalpp/widgets/ToolBoxBottomSheet.dart';
@@ -39,11 +40,13 @@ class EditingToolBarState extends State<EditingToolBar> {
         onHover: (event) {
           currentDevice = event.kind;
         },
+        cursor: SystemMouseCursors.click,
         child: ListView(
           children: [
             FloatingActionButton(
               heroTag: EditingTool.STYLUS,
               onPressed: () {
+                HapticFeedback.selectionClick();
                 setState(() =>
                     widget.deviceMap![currentDevice] = EditingTool.STYLUS);
                 saveDeviceTable();
@@ -59,6 +62,7 @@ class EditingToolBarState extends State<EditingToolBar> {
             FloatingActionButton(
               heroTag: EditingTool.HIGHLIGHT,
               onPressed: () {
+                HapticFeedback.selectionClick();
                 setState(() =>
                     widget.deviceMap![currentDevice] = EditingTool.HIGHLIGHT);
                 saveDeviceTable();
@@ -74,6 +78,7 @@ class EditingToolBarState extends State<EditingToolBar> {
             FloatingActionButton(
               heroTag: EditingTool.MOVE,
               onPressed: () {
+                HapticFeedback.selectionClick();
                 setState(
                     () => widget.deviceMap![currentDevice] = EditingTool.MOVE);
                 saveDeviceTable();
@@ -89,6 +94,7 @@ class EditingToolBarState extends State<EditingToolBar> {
             FloatingActionButton(
               heroTag: EditingTool.TEXT,
               onPressed: () {
+                HapticFeedback.selectionClick();
                 setState(
                     () => widget.deviceMap![currentDevice] = EditingTool.TEXT);
                 saveDeviceTable();
@@ -104,6 +110,7 @@ class EditingToolBarState extends State<EditingToolBar> {
             FloatingActionButton(
               heroTag: EditingTool.LATEX,
               onPressed: () {
+                HapticFeedback.selectionClick();
                 setState(
                     () => widget.deviceMap![currentDevice] = EditingTool.LATEX);
                 saveDeviceTable();
@@ -119,6 +126,7 @@ class EditingToolBarState extends State<EditingToolBar> {
             FloatingActionButton(
               heroTag: EditingTool.ERASER,
               onPressed: () {
+                HapticFeedback.selectionClick();
                 setState(() =>
                     widget.deviceMap![currentDevice] = EditingTool.ERASER);
                 saveDeviceTable();
@@ -134,6 +142,7 @@ class EditingToolBarState extends State<EditingToolBar> {
             FloatingActionButton(
               heroTag: EditingTool.WHITEOUT,
               onPressed: () {
+                HapticFeedback.selectionClick();
                 setState(() =>
                     widget.deviceMap![currentDevice] = EditingTool.WHITEOUT);
                 saveDeviceTable();
@@ -149,6 +158,7 @@ class EditingToolBarState extends State<EditingToolBar> {
             FloatingActionButton(
               heroTag: EditingTool.IMAGE,
               onPressed: () {
+                HapticFeedback.selectionClick();
                 setState(
                     () => widget.deviceMap![currentDevice] = EditingTool.IMAGE);
                 saveDeviceTable();
@@ -164,12 +174,13 @@ class EditingToolBarState extends State<EditingToolBar> {
             FloatingActionButton(
               heroTag: EditingTool.SELECT,
               onPressed: () {
+                HapticFeedback.selectionClick();
                 setState(() =>
                     widget.deviceMap![currentDevice] = EditingTool.SELECT);
                 saveDeviceTable();
               },
               child: Icon(Icons.tab_unselected),
-              tooltip: S.of(context).selectNotImplemented,
+              tooltip: S.of(context).select,
               elevation: 6,
               backgroundColor:
                   widget.deviceMap![currentDevice] == EditingTool.SELECT

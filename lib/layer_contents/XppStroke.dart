@@ -130,17 +130,40 @@ abstract class XppStroke extends XppContent {
 
   @override
   bool inRegion({Offset? topLeft, Offset? bottomRight}) {
-    // TODO: implement shouldSelectAt
-    throw UnimplementedError();
+    if (points!.isEmpty) return false;
+    for (final point in points!) {
+      final pt = point.offset;
+      if (pt.dx >= topLeft!.dx &&
+          pt.dx <= bottomRight!.dx &&
+          pt.dy >= topLeft!.dy &&
+          pt.dy <= bottomRight!.dy) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @override
   bool shouldSelectAt({Offset? coordinates, EditingTool? tool}) {
-    // TODO: implement shouldSelectAt
-    throw UnimplementedError();
+    if (points!.isEmpty) return false;
+    for (final point in points!) {
+      final dist = (point.offset - coordinates!).distance;
+      if (dist < (point.width ?? 5) * 2) return true;
+    }
+    return false;
   }
 
   XppStroke newStroke({Color? color, List<XppStrokePoint>? points});
+
+  @override
+  void moveBy(Offset delta) {
+    final moved = points!.map((p) => XppStrokePoint(
+          x: p.x! + delta.dx,
+          y: p.y! + delta.dy,
+          width: p.width,
+        )).toList();
+    points = moved;
+  }
 
   bool _shouldRemovePoint(
       XppStrokePoint element, Offset coordinates, double radius) {
