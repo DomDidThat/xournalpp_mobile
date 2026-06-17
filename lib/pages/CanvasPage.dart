@@ -106,7 +106,7 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Shortcuts(
+    final inner = Shortcuts(
       shortcuts: {
         LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyS):
             SaveIntent(),
@@ -157,6 +157,16 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
           },
         ),
       ),
+    );
+    if (widget.notebookId == null) return inner;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _saveToNotebook();
+        if (mounted) Navigator.of(context).pop();
+      },
+      child: inner,
     );
   }
 
