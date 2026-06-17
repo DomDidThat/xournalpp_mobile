@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:xournalpp/generated/l10n.dart';
-import 'package:xournalpp/pages/CanvasPage.dart';
-import 'package:xournalpp/pages/OpenPage.dart';
-import 'package:xournalpp/src/XppFile.dart';
+import 'package:xournalpp/pages/NotebooksPage.dart';
 import 'package:xournalpp/widgets/QuotaTile.dart';
 
 class MainDrawer extends StatefulWidget {
@@ -48,24 +46,11 @@ class _MainDrawerState extends State<MainDrawer> {
                   ),
                 ),
                 ListTile(
-                  leading: Icon(Icons.home),
+                  leading: const Icon(Icons.home),
                   title: Text(S.of(context).home),
                   onTap: () => Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (context) => OpenPage())),
-                ),
-                ListTile(
-                    leading: Icon(Icons.folder),
-                    title: Text(S.of(context).open),
-                    onTap: () => XppFile.openAndEdit(context: context)),
-                ListTile(
-                  leading: Icon(Icons.insert_drive_file),
-                  title: Text(S.of(context).newFile),
-                  onTap: () =>
-                      Navigator.of(context).pushReplacement(MaterialPageRoute(
-                          builder: (context) => CanvasPage(
-                                file: XppFile.empty(
-                                    background: Theme.of(context).cardColor),
-                              ))),
+                      MaterialPageRoute(
+                          builder: (context) => const NotebooksPage())),
                 ),
                 Divider(),
               ],

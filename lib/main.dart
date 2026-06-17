@@ -2,7 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:xournalpp/pages/OpenPage.dart';
+import 'package:xournalpp/pages/NotebooksPage.dart';
 
 import 'generated/l10n.dart';
 
@@ -129,7 +129,7 @@ class XournalppMobile extends StatelessWidget {
           visualDensity: VisualDensity.adaptivePlatformDensity,
           dialogTheme: kDialogThemeData,
           snackBarTheme: kSnackBarThemeData),
-      home: OpenPage(),
+      home: const NotebooksPage(),
     );
   }
 }

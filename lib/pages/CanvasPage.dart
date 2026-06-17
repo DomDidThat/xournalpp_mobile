@@ -18,8 +18,10 @@ import 'package:xournalpp/src/XppLayer.dart';
 import 'package:xournalpp/src/XppPage.dart';
 import 'package:xournalpp/src/globals.dart';
 import 'package:xournalpp/src/PencilSupport.dart';
+import 'package:xournalpp/src/NotebookDatabase.dart';
 import 'package:xournalpp/src/UndoStack.dart';
 import 'package:xournalpp/widgets/EditingToolbar.dart';
+import 'package:xournalpp/widgets/ModernToolbar.dart';
 import 'package:xournalpp/widgets/LayerSheet.dart';
 import 'package:xournalpp/widgets/MainDrawer.dart';
 import 'package:xournalpp/widgets/PointerListener.dart';
@@ -37,10 +39,12 @@ class ZoomOutIntent extends Intent {}
 class ResetZoomIntent extends Intent {}
 
 class CanvasPage extends StatefulWidget {
-  CanvasPage({Key? key, this.file, this.filePath}) : super(key: key);
+  CanvasPage({Key? key, this.file, this.filePath, this.notebookId, this.initialPageIndex = 0}) : super(key: key);
 
   final XppFile? file;
   final String? filePath;
+  final String? notebookId;
+  final int initialPageIndex;
 
   @override
   _CanvasPageState createState() => _CanvasPageState();
@@ -58,7 +62,16 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
   Offset? _selectedContentOriginalOffset;
 
   Color toolColor = Colors.blueGrey;
-  double toolWidth = 5;
+
+  final Map<EditingTool, double> _toolWidths = {
+    EditingTool.STYLUS: 3.0,
+    EditingTool.HIGHLIGHT: 10.0,
+    EditingTool.ERASER: 20.0,
+    EditingTool.WHITEOUT: 20.0,
+  };
+
+  double get _currentToolWidth =>
+      _toolWidths[_toolData[_currentDevice]] ?? 3.0;
 
   TransformationController _zoomController = TransformationController();
 
@@ -68,6 +81,7 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
   /// used fro parent-child communication
   final GlobalKey<XppPageStackState> _pageStackKey = GlobalKey();
   final GlobalKey<EditingToolBarState> _editingToolbarKey = GlobalKey();
+  final GlobalKey<ModernToolbarState> _modernToolbarKey = GlobalKey();
   final GlobalKey<PointerListenerState> _pointerListenerKey = GlobalKey();
   final GlobalKey<ZoomableWidgetState> _zoomableKey = GlobalKey();
   final GlobalKey<XppPagesListViewState> pageListViewKey = GlobalKey();
@@ -147,27 +161,6 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
   }
 
   Widget _buildPage(bool isWide) {
-    final toolbar = EditingToolBar(
-        key: _editingToolbarKey,
-        deviceMap: _toolData,
-        color: toolColor,
-        onWidthChange: (newWidth) {
-          setState(() {
-            toolWidth = newWidth * 2;
-          });
-        },
-        onColorChange: (newColor) {
-          setState(() {
-            toolColor = newColor;
-          });
-        },
-        onNewDeviceMap: (newDeviceMap) => setState(
-              () {
-                _toolData = newDeviceMap!;
-                _setZoomableState();
-              },
-            ));
-
     if (isWide) {
       return Scaffold(
         drawer: MainDrawer(),
@@ -243,77 +236,85 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
         ),
         body: Column(
           children: [
-            toolbar,
+            Center(
+              child: ModernToolbar(
+                key: _modernToolbarKey,
+                deviceMap: _toolData,
+                color: toolColor,
+                currentWidth: _currentToolWidth,
+                onNewDeviceMap: (map) => setState(() {
+                  _toolData = map;
+                  _setZoomableState();
+                }),
+                onColorChanged: (c) => setState(() => toolColor = c),
+                onWidthChanged: (tool, w) =>
+                    setState(() => _toolWidths[tool] = w),
+                onBackgroundChange: (newBackground) {
+                  newBackground.size = _file!.pages![currentPage].pageSize;
+                  setState(() =>
+                      _file!.pages![currentPage].background = newBackground);
+                },
+              ),
+            ),
             Expanded(
-              child: Row(
+              child: GestureDetector(
+                onTap: () =>
+                    _modernToolbarKey.currentState?.closeSubPanel(),
+                behavior: HitTestBehavior.translucent,
+                child: _buildCanvas(),
+              ),
+            ),
+            Container(
+              height: 100,
+              color: Theme.of(context).colorScheme.surface,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
                 children: [
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Expanded(child: _buildCanvas()),
-                        Container(
-                          height: 100,
-                          color: Theme.of(context).colorScheme.surface,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
-                            children: [
-                              XppPagesListView(
-                                  key: pageListViewKey,
-                                  pages: _file!.pages,
-                                  onPageChange: (newPage) {
-                                    setState(() => currentPage = newPage);
-                                    _pageStackKey.currentState!
-                                        .setPageData(_file!.pages![currentPage]);
-                                  },
-                                  onPageDelete: (deletedIndex) => setState(() {
-                                        _file!.pages!.removeAt(deletedIndex);
-                                        if (_file!.pages!.length >= currentPage)
-                                          currentPage =
-                                              _file!.pages!.length - 1;
-                                        if (_file!.pages!.isEmpty) {
-                                          _file!.pages!.add(XppPage.empty(
-                                              background:
-                                                  Theme.of(context).cardColor));
-                                          currentPage = 0;
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(SnackBar(
-                                                  content: Text(S
-                                                      .of(context)
-                                                      .thereWereNoMorePagesWeAddedOne)));
-                                        }
-                                      }),
-                                  onPageMove: (initialIndex, movedTo) =>
-                                      setState(() {
-                                        final page =
-                                            _file!.pages![initialIndex];
-                                        _file!.pages!.removeAt(initialIndex);
-                                        _file!.pages!.insert(
-                                            movedTo - 1, page);
-                                      }),
-                                  currentPage: currentPage),
-                              FloatingActionButton(
-                                heroTag: 'AddXppPage',
-                                onPressed: () {
-                                  final newPage = XppPage.empty(
-                                      background:
-                                          Theme.of(context).cardColor);
-                                  _undoStack.execute(AddPageCommand(
-                                      file: _file!,
-                                      page: newPage,
-                                      index: currentPage + 1));
-                                  setState(() => currentPage++);
-                                  _pageStackKey.currentState!.setPageData(
-                                      _file!.pages![currentPage]);
-                                },
-                                child: Icon(Icons.add),
-                                tooltip: S.of(context).addPage,
-                              )
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  XppPagesListView(
+                      key: pageListViewKey,
+                      pages: _file!.pages,
+                      onPageChange: (newPage) {
+                        setState(() => currentPage = newPage);
+                        _pageStackKey.currentState!
+                            .setPageData(_file!.pages![currentPage]);
+                      },
+                      onPageDelete: (deletedIndex) => setState(() {
+                            _file!.pages!.removeAt(deletedIndex);
+                            if (_file!.pages!.length >= currentPage)
+                              currentPage = _file!.pages!.length - 1;
+                            if (_file!.pages!.isEmpty) {
+                              _file!.pages!.add(XppPage.empty(
+                                  background: Theme.of(context).cardColor));
+                              currentPage = 0;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                      content: Text(S
+                                          .of(context)
+                                          .thereWereNoMorePagesWeAddedOne)));
+                            }
+                          }),
+                      onPageMove: (initialIndex, movedTo) => setState(() {
+                            final page = _file!.pages![initialIndex];
+                            _file!.pages!.removeAt(initialIndex);
+                            _file!.pages!.insert(movedTo - 1, page);
+                          }),
+                      currentPage: currentPage),
+                  FloatingActionButton(
+                    heroTag: 'AddXppPage',
+                    onPressed: () {
+                      final newPage = XppPage.empty(
+                          background: Theme.of(context).cardColor);
+                      _undoStack.execute(AddPageCommand(
+                          file: _file!,
+                          page: newPage,
+                          index: currentPage + 1));
+                      setState(() => currentPage++);
+                      _pageStackKey.currentState!
+                          .setPageData(_file!.pages![currentPage]);
+                    },
+                    child: Icon(Icons.add),
+                    tooltip: S.of(context).addPage,
+                  )
                 ],
               ),
             ),
@@ -429,7 +430,9 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
                 color: toolColor,
                 onWidthChange: (newWidth) {
                   setState(() {
-                    toolWidth = newWidth * 2;
+                    final tool =
+                        _toolData[_currentDevice] ?? EditingTool.STYLUS;
+                    _toolWidths[tool] = newWidth * 2;
                   });
                 },
                 onColorChange: (newColor) {
@@ -496,7 +499,7 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
                     key: _pointerListenerKey,
                     translationMatrix: _zoomController.value,
                     toolData: _toolData,
-                    strokeWidth: toolWidth,
+                    strokeWidth: _currentToolWidth,
                     color: toolColor,
                     onDeviceChange: ({int? device, PointerDeviceKind? kind}) {
                       setDefaultDeviceIfNotSet(kind: kind);
@@ -505,6 +508,7 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
                         _editingToolbarKey.currentState?.currentDevice = kind;
                         _setZoomableState();
                       });
+                      _modernToolbarKey.currentState?.setCurrentDevice(kind);
                     },
                     removeLastContent: () {
                       _file!.pages![currentPage].layers![currentLayer].content!
@@ -684,7 +688,8 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
 
   void _setMetadata() {
     _file = widget.file;
-    //if (widget.filePath != null) filePath = widget.filePath;
+    currentPage = widget.initialPageIndex
+        .clamp(0, (_file?.pages?.length ?? 1) - 1);
   }
 
   Future<void> _showTitleDialog() async {
@@ -782,8 +787,14 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
   }
 
   void _setZoomableState() {
-    final zoomEnabled = _toolData[_currentDevice] == null ||
-        _toolData[_currentDevice] == EditingTool.MOVE;
+    // On touch/iPad the toolbar never receives hover events, so it writes to
+    // deviceMap[null] rather than deviceMap[touch]. Fall back to the null-key
+    // entry so toolbar taps take effect immediately without requiring a prior
+    // pointer event to set _currentDevice.
+    final tool = _toolData.containsKey(_currentDevice)
+        ? _toolData[_currentDevice]
+        : _toolData[null];
+    final zoomEnabled = tool == null || tool == EditingTool.MOVE;
     _zoomableKey.currentState!
         .setState(() => _zoomableKey.currentState!.enabled = zoomEnabled);
     _pointerListenerKey.currentState!.setState(() {
@@ -820,6 +831,11 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
   }
 
   void saveFile({bool export = false}) async {
+    if (widget.notebookId != null && !export) {
+      await _saveToNotebook();
+      return;
+    }
+
     setState(() {
       savingFile = true;
     });
@@ -881,6 +897,56 @@ class _CanvasPageState extends State<CanvasPage> with TickerProviderStateMixin {
         ),
       );
     }*/
+  }
+
+  Future<void> _saveToNotebook() async {
+    setState(() => savingFile = true);
+    final snack = ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(S.of(context).savingFile),
+        duration: const Duration(days: 999),
+      ),
+    );
+
+    final encoded = _file!.toUint8List();
+    if (encoded != null) {
+      await NotebookDatabase.instance.saveNotebook(
+        id: widget.notebookId!,
+        xoppData: Uint8List.fromList(encoded),
+        pageCount: _file!.pages!.length,
+      );
+    }
+
+    // Render thumbnail for the current page and any pages rendered in the strip.
+    final listState = pageListViewKey.currentState;
+    if (listState != null) {
+      for (int i = 0; i < (_file!.pages?.length ?? 0); i++) {
+        try {
+          final png = await listState.getPng(i);
+          await NotebookDatabase.instance.upsertThumbnail(
+            notebookId: widget.notebookId!,
+            pageIndex: i,
+            pngBytes: png,
+          );
+        } catch (_) {
+          // Page widget not ready to render — skip, it will be captured on next save.
+        }
+      }
+    }
+
+    // Prune thumbnails for pages that were deleted.
+    await NotebookDatabase.instance.trimThumbnails(
+      notebookId: widget.notebookId!,
+      newPageCount: _file!.pages!.length,
+    );
+
+    snack.close();
+    if (mounted) {
+      setState(() => savingFile = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(S.of(context).successfullySaved)),
+      );
+    }
   }
 
   void _onAnimationReset() {

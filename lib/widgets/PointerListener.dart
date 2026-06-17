@@ -52,6 +52,12 @@ class PointerListenerState extends State<PointerListener> {
 
   bool poppedContentForCurrentPointer = false;
 
+  // Track active pointer IDs (data.pointer is unique per touch contact).
+  final Set<int> _activePointers = {};
+  // True once a second pointer arrived during a stroke — stays true until
+  // all pointers are lifted so we don't accidentally commit the stroke.
+  bool _multiTouchCancelled = false;
+
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
@@ -64,6 +70,7 @@ class PointerListenerState extends State<PointerListener> {
         onPointerMove: (data) {
           widget.onDeviceChange!(device: data.device, kind: data.kind);
           if (!drawingEnabled) return;
+          if (_multiTouchCancelled || _activePointers.length > 1) return;
 
           if (isSelect(data)) {
             final delta = _lastSelectPosition != null
@@ -93,6 +100,16 @@ class PointerListenerState extends State<PointerListener> {
                 radius: widget.strokeWidth);
         },
         onPointerDown: (data) {
+          _activePointers.add(data.pointer);
+          if (_activePointers.length > 1) {
+            // Second finger arrived — cancel any in-progress stroke immediately
+            // so it isn't committed when the first finger lifts.
+            _multiTouchCancelled = true;
+            if (points.isNotEmpty) setState(() => points.clear());
+            return;
+          }
+          _multiTouchCancelled = false;
+
           setState(() {
             tool = getToolFromPointer(data);
           });
@@ -123,12 +140,16 @@ class PointerListenerState extends State<PointerListener> {
           }
         },
         onPointerUp: (data) {
+          _activePointers.remove(data.pointer);
+          if (_activePointers.isEmpty) _multiTouchCancelled = false;
           _lastSelectPosition = null;
-          if (points.isNotEmpty) saveStroke(tool);
+          if (!_multiTouchCancelled && points.isNotEmpty) saveStroke(tool);
           poppedContentForCurrentPointer = false;
           points.clear();
         },
         onPointerCancel: (data) {
+          _activePointers.remove(data.pointer);
+          if (_activePointers.isEmpty) _multiTouchCancelled = false;
           _lastSelectPosition = null;
           points.clear();
           poppedContentForCurrentPointer = false;
@@ -176,39 +197,33 @@ class PointerListenerState extends State<PointerListener> {
     }
   }
 
-  bool isSelect(PointerEvent data) {
-    return (widget.toolData.keys.contains(data.kind) &&
-        widget.toolData[data.kind] == EditingTool.SELECT);
-  }
+  // Returns the tool for a pointer's device kind, falling back to the null-key
+  // entry that toolbars write when no hover event has set their currentDevice
+  // (the common case on iPad / touch-only devices).
+  EditingTool? _effectiveTool(PointerEvent data) =>
+      widget.toolData[data.kind] ?? widget.toolData[null];
+
+  bool isSelect(PointerEvent data) =>
+      _effectiveTool(data) == EditingTool.SELECT;
 
   bool isPen(PointerEvent data) {
-    return (widget.toolData.keys.contains(data.kind) &&
-            widget.toolData[data.kind] == EditingTool.STYLUS) ||
-        (!widget.toolData.keys.contains(data.kind) &&
-            data.kind == PointerDeviceKind.stylus);
+    final tool = _effectiveTool(data);
+    return tool == EditingTool.STYLUS ||
+        (tool == null && data.kind == PointerDeviceKind.stylus);
   }
 
-  bool isHighlighter(PointerEvent data) {
-    return (widget.toolData.keys.contains(data.kind) &&
-        widget.toolData[data.kind] == EditingTool.HIGHLIGHT);
-  }
+  bool isHighlighter(PointerEvent data) =>
+      _effectiveTool(data) == EditingTool.HIGHLIGHT;
 
   bool isEraser(PointerEvent data) {
-    return (widget.toolData.keys.contains(data.kind) &&
-            widget.toolData[data.kind] == EditingTool.ERASER) ||
-        (!widget.toolData.keys.contains(data.kind) &&
-            data.kind == PointerDeviceKind.invertedStylus);
+    final tool = _effectiveTool(data);
+    return tool == EditingTool.ERASER ||
+        (tool == null && data.kind == PointerDeviceKind.invertedStylus);
   }
 
-  bool isText(PointerEvent data) {
-    return (widget.toolData.keys.contains(data.kind) &&
-        widget.toolData[data.kind] == EditingTool.TEXT);
-  }
+  bool isText(PointerEvent data) => _effectiveTool(data) == EditingTool.TEXT;
 
-  bool isLaTeX(PointerEvent data) {
-    return (widget.toolData.keys.contains(data.kind) &&
-        widget.toolData[data.kind] == EditingTool.LATEX);
-  }
+  bool isLaTeX(PointerEvent data) => _effectiveTool(data) == EditingTool.LATEX;
 
   XppStrokeTool getToolFromPointer(PointerEvent data) {
     XppStrokeTool tool = XppStrokeTool.PEN;
