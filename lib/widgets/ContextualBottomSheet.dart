@@ -11,6 +11,7 @@ class ContextualBottomSheet extends StatelessWidget {
         Navigator.of(context).pop();
       },
       elevation: 16,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
             topLeft: Radius.circular(16), topRight: Radius.circular(16)),

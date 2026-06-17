@@ -120,7 +120,12 @@ class XournalppMobile extends StatelessWidget {
           colorScheme: kColorScheme.copyWith(brightness: Brightness.light),
           visualDensity: VisualDensity.adaptivePlatformDensity,
           dialogTheme: kDialogThemeData,
-          snackBarTheme: kSnackBarThemeData),
+          snackBarTheme: kSnackBarThemeData,
+          appBarTheme: const AppBarTheme(
+            foregroundColor: kLightColor,
+            iconTheme: IconThemeData(color: kLightColor),
+            actionsIconTheme: IconThemeData(color: kLightColor),
+          )),
       darkTheme: ThemeData(
           primarySwatch: kPrimaryColor as MaterialColor?,
           fontFamily: 'Open Sans',
@@ -128,7 +133,12 @@ class XournalppMobile extends StatelessWidget {
           colorScheme: kColorScheme,
           visualDensity: VisualDensity.adaptivePlatformDensity,
           dialogTheme: kDialogThemeData,
-          snackBarTheme: kSnackBarThemeData),
+          snackBarTheme: kSnackBarThemeData,
+          appBarTheme: const AppBarTheme(
+            foregroundColor: kLightColor,
+            iconTheme: IconThemeData(color: kLightColor),
+            actionsIconTheme: IconThemeData(color: kLightColor),
+          )),
       home: const NotebooksPage(),
     );
   }
